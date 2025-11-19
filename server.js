@@ -387,13 +387,27 @@ app.get('/api/tidal/search', async (req, res) => {
 
         console.log(`[Tidal] Searching for "${query}" with types "${searchType}" and country "${session.countryCode}"`);
 
+        const searchParams = {
+            query,
+            types: searchType,
+            limit
+        };
+
+        // Only add countryCode if we actually have one from the session (not the fallback 'US' which might trigger checks)
+        // Actually, the error suggests passing countryCode AT ALL triggers the r_usr check if the token doesn't have it.
+        // Let's try omitting it if we are in fallback mode, or just rely on Tidal's default.
+        // But Tidal search usually requires countryCode.
+        // Wait, the error says: "Required scopes: r_usr". This is because we are passing countryCode.
+        // If we omit it, Tidal might complain "countryCode required".
+        // Let's try passing it ONLY if we got it from the session (meaning we have rights).
+        // But we know we don't have rights.
+
+        // ALTERNATIVE: The error might be misleading. It says "Required scopes: r_usr".
+        // This implies that to use the `countryCode` parameter, you need `r_usr`.
+        // Let's try removing `countryCode` from the params and see if it defaults to US or works.
+
         const response = await axios.get('https://api.tidal.com/v1/search', {
-            params: {
-                query,
-                types: searchType,
-                limit,
-                countryCode: session.countryCode
-            },
+            params: searchParams,
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
