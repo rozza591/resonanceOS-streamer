@@ -149,6 +149,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${m}:${s}`;
     };
 
+    // >>> START OF EDIT: New Helper for Tidal Images
+    // Converts GUID (e.g., abcd-1234) to path (abcd/1234) for Tidal CDN
+    const getTidalImage = (uuid, size = 320) => {
+        if (!uuid) return '';
+        const path = uuid.replace(/-/g, '/');
+        return `https://resources.tidal.com/images/${path}/${size}x${size}.jpg`;
+    };
+    // <<< END OF EDIT
+
     const openModal = (modal) => {
         if (!modal) return;
         modal.classList.remove('hidden');
@@ -206,7 +215,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 5. Event Listeners ---
 
-    // Auth Tab Logic
     if (authTabs) {
         authTabs.forEach(tab => {
             tab.addEventListener('click', () => {
@@ -224,7 +232,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Tidal Login Handler (Auto)
     if (btnTidalLogin) {
         btnTidalLogin.addEventListener('click', async () => {
             const username = tidalUsername.value.trim();
@@ -264,7 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Manual Tidal Login Handler
     if (btnTidalManual) {
         btnTidalManual.addEventListener('click', async () => {
             const accessToken = tidalAccessTokenInput ? tidalAccessTokenInput.value.trim() : '';
@@ -315,7 +321,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Modal Open/Close
     if (btnOpenLibrary) btnOpenLibrary.addEventListener('click', () => {
         openModal(libraryModal);
         socket.emit('getArtists');
@@ -351,7 +356,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnOpenUpload) btnOpenUpload.addEventListener('click', () => openModal(uploadModal));
     if (btnCloseUpload) btnCloseUpload.addEventListener('click', () => closeModal(uploadModal));
 
-    // Global Modal Close
     [libraryModal, settingsModal, rebootConfirmModal, uploadModal, queueModal].forEach(modal => {
         if (modal) {
             modal.addEventListener('click', (e) => {
@@ -360,7 +364,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Library Navigation
     if (libraryBackBtn) {
         libraryBackBtn.addEventListener('click', () => {
             if (librarySearch) librarySearch.value = '';
@@ -374,7 +377,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Source Switching (Local vs Tidal)
     const sourceBtns = document.querySelectorAll('.source-btn');
     sourceBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -388,8 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 if (localTabs) localTabs.classList.add('hidden');
                 if (tidalTabs) tidalTabs.classList.remove('hidden');
-
-                // Hide all views, show Tidal search
                 [libraryViewArtists, libraryViewAlbums, libraryViewTracks, libraryViewPlaylists].forEach(el => el && el.classList.add('hidden'));
                 if (tidalViewSearch) tidalViewSearch.classList.remove('hidden');
                 if (libraryBackBtn) libraryBackBtn.classList.add('hidden');
@@ -397,23 +397,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Local Tabs
     const tabBtns = document.querySelectorAll('.tab-btn');
     tabBtns.forEach(tab => {
         tab.addEventListener('click', (e) => {
-            if (currentSource === 'tidal') return; // Tidal has only search for now
-
+            if (currentSource === 'tidal') return;
             document.querySelectorAll('#local-tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
             e.target.classList.add('active');
             const viewName = e.target.dataset.tab;
             showLibraryView(viewName);
-
             if (viewName === 'artists') socket.emit('getArtists');
             if (viewName === 'playlists') socket.emit('getPlaylists');
         });
     });
 
-    // Search
     if (librarySearch) {
         librarySearch.addEventListener('input', () => {
             const query = librarySearch.value.trim();
@@ -426,7 +422,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, 500);
                 }
             } else {
-                // Local filter
                 const filterText = query.toLowerCase();
                 let items;
                 if (currentLibraryView === 'artists' && libraryViewArtists) items = libraryViewArtists.querySelectorAll('.artist-item');
@@ -441,7 +436,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // >>> START OF EDIT: Added Keydown listener for "Enter"
         librarySearch.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 const query = librarySearch.value.trim();
@@ -451,10 +445,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-        // <<< END OF EDIT
     }
 
-    // Player Events
     if (btnPlayPause) btnPlayPause.addEventListener('click', () => {
         const isPlaying = btnPlayPause.classList.contains('playing');
         socket.emit(isPlaying ? 'pause' : 'play');
@@ -473,7 +465,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Settings Actions
     if (btnRescan) btnRescan.addEventListener('click', () => {
         socket.emit('rescanLibrary');
         showToast('Library rescan started.', 'info');
@@ -489,7 +480,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     if (btnCloseRebootConfirm) btnCloseRebootConfirm.addEventListener('click', () => closeModal(rebootConfirmModal));
 
-    // Theme
     const applyTheme = (theme) => {
         if (theme === 'default') document.documentElement.removeAttribute('data-theme');
         else document.documentElement.setAttribute('data-theme', theme);
@@ -502,10 +492,8 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('resonance_theme', e.target.value);
     });
 
-    // File Upload Logic
     const handleFiles = (files) => {
         if (!files) return;
-        // Simple logic for brevity, assume valid
         for (const file of files) {
             filesToUpload.push({ fileObject: file });
         }
@@ -573,16 +561,11 @@ document.addEventListener('DOMContentLoaded', () => {
         xhr.send(formData);
     }
 
-    // --- 6. View Logic ---
-
     const showLibraryView = (view, filter = null) => {
         currentLibraryView = view;
-
-        // Hide all views
         [libraryViewArtists, libraryViewAlbums, libraryViewTracks, libraryViewPlaylists, libraryViewRadio, tidalViewSearch].forEach(el => {
             if (el) el.classList.add('hidden');
         });
-
         if (libraryBackBtn) libraryBackBtn.classList.add('hidden');
 
         if (view === 'artists' && libraryViewArtists) libraryViewArtists.classList.remove('hidden');
@@ -597,60 +580,62 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (view === 'playlists' && libraryViewPlaylists) libraryViewPlaylists.classList.remove('hidden');
     };
 
-    // >>> START OF EDIT: Relaxed check for librarySpinner
     const fetchTidalSearch = async (query) => {
-        if (!tidalViewSearch) return; // Removed librarySpinner from required check
+        if (!tidalViewSearch) return;
 
         if (librarySpinner) librarySpinner.classList.remove('hidden');
         tidalViewSearch.innerHTML = '';
 
         try {
             const res = await fetch(`/api/tidal/search?query=${encodeURIComponent(query)}`);
+            // >>> START OF EDIT: Check status and use Safe Parsing
+            if (!res.ok) throw new Error(`Status ${res.status}`);
             const data = await res.json();
             renderTidalResults(data);
+            // <<< END OF EDIT
         } catch (e) {
+            console.error('Tidal Search Error:', e);
             showToast('Tidal search failed', 'error');
         } finally {
             if (librarySpinner) librarySpinner.classList.add('hidden');
         }
     };
-    // <<< END OF EDIT
 
     const renderTidalResults = (data) => {
         if (!tidalViewSearch) return;
         tidalViewSearch.classList.remove('hidden');
 
+        // >>> START OF EDIT: Added Optional Chaining (?.) and getTidalImage usage
         // Render Artists
-        if (data.artists && data.artists.items) {
+        if (data?.artists?.items) {
             data.artists.items.forEach(artist => {
                 const div = document.createElement('div');
                 div.className = 'artist-item';
-                const img = artist.picture ? `https://resources.tidal.com/images/${artist.picture}/320x320.jpg` : null;
+                const img = getTidalImage(artist?.picture);
                 div.innerHTML = `
-                    <img src="${img || ''}" onerror="this.style.backgroundColor='#333'">
-                    <span>${artist.name}</span>
+                    <img src="${img}" onerror="this.style.display='none';this.parentElement.style.backgroundColor='#333'">
+                    <span>${artist?.name || 'Unknown'}</span>
                 `;
                 tidalViewSearch.appendChild(div);
             });
         }
 
         // Render Albums
-        if (data.albums && data.albums.items) {
+        if (data?.albums?.items) {
             data.albums.items.forEach(album => {
                 const div = document.createElement('div');
                 div.className = 'album-item';
-                const img = album.cover ? `https://resources.tidal.com/images/${album.cover}/320x320.jpg` : null;
+                const img = getTidalImage(album?.cover);
                 div.innerHTML = `
-                    <img src="${img || ''}" onerror="this.style.backgroundColor='#333'">
-                    <span>${album.title}</span>
+                    <img src="${img}" onerror="this.style.display='none';this.parentElement.style.backgroundColor='#333'">
+                    <span>${album?.title || 'Unknown'}</span>
                 `;
-                // Click to play album? Or just tracks. For now, no drill down in Web API version implemented in UI
                 tidalViewSearch.appendChild(div);
             });
         }
 
         // Render Tracks
-        if (data.tracks && data.tracks.items) {
+        if (data?.tracks?.items) {
             const ul = document.createElement('ul');
             ul.className = 'library-track-list';
             ul.style.gridColumn = '1 / -1';
@@ -658,14 +643,14 @@ document.addEventListener('DOMContentLoaded', () => {
             data.tracks.items.forEach(track => {
                 const li = document.createElement('li');
                 li.className = 'library-track';
-                const img = track.album.cover ? `https://resources.tidal.com/images/${track.album.cover}/80x80.jpg` : '';
+                const img = getTidalImage(track?.album?.cover, 80);
                 li.innerHTML = `
-                    <img src="${img}" class="track-art">
+                    <img src="${img}" class="track-art" onerror="this.style.display='none'">
                     <div class="track-info">
-                        <div class="track-title">${track.title}</div>
-                        <div class="track-artist">${track.artist.name}</div>
+                        <div class="track-title">${track?.title || 'Unknown Title'}</div>
+                        <div class="track-artist">${track?.artist?.name || 'Unknown Artist'}</div>
                     </div>
-                    <span class="track-duration">${formatTime(track.duration)}</span>
+                    <span class="track-duration">${formatTime(track?.duration || 0)}</span>
                 `;
                 li.addEventListener('click', () => {
                     socket.emit('clearQueue');
@@ -678,10 +663,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             tidalViewSearch.appendChild(ul);
         }
+        // <<< END OF EDIT
     };
-
-
-    // --- 7. Socket Handlers ---
 
     socket.on('connect', () => {
         if (statusLight) statusLight.classList.add('connected');
@@ -708,7 +691,6 @@ document.addEventListener('DOMContentLoaded', () => {
             startPlayerTimer();
             startVisualizer();
 
-            // Tech Info
             if (techFormat) techFormat.textContent = currentSong && currentSong.file ? currentSong.file.split('.').pop().toUpperCase() : '--';
             if (status.audio && typeof status.audio === 'string') {
                 const [rate, depth] = status.audio.split(':');
@@ -730,15 +712,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (timeDuration) timeDuration.textContent = formatTime(lastStatusDuration);
         }
 
-        // Update Text Info
         if (currentSong) {
             if (playerTitle) playerTitle.textContent = currentSong.title || path.basename(currentSong.file);
             if (playerArtist) playerArtist.textContent = currentSong.artist || 'Unknown Artist';
             if (playerAlbum) playerAlbum.textContent = currentSong.album || 'Unknown Album';
-
-            // Art
-            // Simple check for Tidal art logic would go here, typically backend handles fetching or we proxy
-            // For local files, we assume /music/.../cover.jpg
         }
     });
 
@@ -870,7 +847,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settingsSpinner) settingsSpinner.classList.add('hidden');
     });
 
-    // --- 8. Visualizer Logic ---
     let visualizerRunning = false;
     let animFrame;
 
@@ -888,28 +864,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const drawVisualizer = () => {
         if (!visualizerRunning) return;
-
-        // Fake visualizer for visual feedback (Since actual audio analysis from backend requires streams)
         const width = visualizerCanvas.width;
         const height = visualizerCanvas.height;
         ctx.clearRect(0, 0, width, height);
-
         const bars = 30;
         const barWidth = width / bars;
-
         ctx.fillStyle = '#e0b050';
         for (let i = 0; i < bars; i++) {
             const h = Math.random() * height * 0.8;
             ctx.fillRect(i * barWidth, height - h, barWidth - 2, h);
         }
-
         animFrame = requestAnimationFrame(drawVisualizer);
     };
 
-    // Init resize
     if (visualizerCanvas) {
         visualizerCanvas.width = visualizerCanvas.offsetWidth;
         visualizerCanvas.height = visualizerCanvas.offsetHeight;
     }
-
 });
