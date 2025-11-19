@@ -189,7 +189,8 @@ function sha256(buffer) {
 app.get('/auth/tidal', (req, res) => {
     const clientId = process.env.TIDAL_CLIENT_ID;
     const redirectUri = CONFIG.REDIRECT_URI;
-    const scope = 'user.read collection.read search.read playlists.write playlists.read entitlements.read collection.write recommendations.read playback search.write';
+    // FIXED: Added 'r_usr' to the beginning of the scope list to satisfy API requirements
+    const scope = 'r_usr user.read collection.read search.read playlists.write playlists.read entitlements.read collection.write recommendations.read playback search.write';
 
     // Generate PKCE Verifier and Challenge
     const verifier = base64URLEncode(crypto.randomBytes(32));
