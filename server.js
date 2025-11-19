@@ -7,16 +7,16 @@ const { cmd } = mpd;
 const path = require('path');
 const multer = require('multer');
 const { exec } = require('child_process');
-const fs = require('fs').promises; // Use promises API
-const fsSync = require('fs'); // For sync operations where needed
+const fs = require('fs').promises;
+const fsSync = require('fs');
 const musicMetadata = require('music-metadata');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const os = require('os');
-const axios = require('axios'); // <-- ADDED FOR METADATA
-const sqlite3 = require('sqlite3'); // <-- ADDED
-const util = require('util'); // <-- ADDED
-const execAsync = util.promisify(exec); // <-- ADDED
+const axios = require('axios');
+const sqlite3 = require('sqlite3');
+const util = require('util');
+const execAsync = util.promisify(exec);
 
 // --- 2. Configuration ---
 const CONFIG = {
@@ -24,8 +24,10 @@ const CONFIG = {
     MPD_HOST: process.env.MPD_HOST || 'localhost',
     MPD_PORT: process.env.MPD_PORT || 6600,
     MUSIC_DIR: process.env.MUSIC_DIR || '/var/lib/mpd/music',
-    DB_PATH: process.env.DB_PATH || path.join(__dirname, 'audiophile.db'), // <-- ADDED
-    MAX_FILE_SIZE: 500 * 1024 * 1024, // 500MB
+    DB_PATH: process.env.DB_PATH || path.join(__dirname, 'audiophile.db'),
+    // USES .env VALUE FIRST, FALLS BACK TO LOCALHOST
+    REDIRECT_URI: process.env.REDIRECT_URI || 'http://localhost:3000/auth/tidal/callback',
+    MAX_FILE_SIZE: 500 * 1024 * 1024,
     MAX_FILES: 50,
     RECONNECT_DELAY: 5000,
     COMMAND_TIMEOUT: 10000
@@ -46,7 +48,7 @@ const io = new Server(server, {
 let mpdClient;
 let isReconnecting = false;
 let clientReady = false;
-let db; // <-- ADDED: Database handle
+let db;
 
 // --- 4. Security Middleware ---
 app.use(helmet({
@@ -54,19 +56,18 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"], // <-- MODIFIED for metadata script
-            scriptSrcAttr: ["'unsafe-inline'"], // <-- ADDED for inline event handlers
-            styleSrc: ["'self'", "'unsafe-inline'"], // <-- ADDED for inline styles
-            imgSrc: ["'self'", "data:", "blob:", "https://www.theaudiodb.com"], // <-- ADDED for art
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+            scriptSrcAttr: ["'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "blob:", "https://www.theaudiodb.com"],
             mediaSrc: ["'self'"],
-            connectSrc: ["'self'", "ws:", "wss:", "https://www.theaudiodb.com", "*"], // <-- ADDED * for local network
+            connectSrc: ["'self'", "ws:", "wss:", "https://www.theaudiodb.com", "*"],
             'upgrade-insecure-requests': null
         }
     }
 }));
 
 const uploadLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many uploads, please try again later.' });
-const apiLimiter = rateLimit({ windowMs: 1 * 60 * 1000, max: 100 });
 
 // --- 5. Configure File Uploads (Multer) ---
 const storage = multer.diskStorage({
@@ -252,14 +253,7 @@ const sendStatus = async () => {
 const sendOutputs = async () => {
     try {
         const { stdout } = await execAsync('aplay -l');
-
-        const internalDeviceNames = [
-            'bcm2835_headphon',
-            'vc4-hdmi',
-            'bcm2835_hdmi',
-            'HDA Intel HDMI'
-        ];
-
+        const internalDeviceNames = ['bcm2835_headphon', 'vc4-hdmi', 'bcm2835_hdmi', 'HDA Intel HDMI'];
         const internalCardNumbers = new Set();
         const externalDeviceMap = {};
 
@@ -269,7 +263,6 @@ const sendOutputs = async () => {
                 const cardNum = cardMatch[1];
                 const driverName = cardMatch[2];
                 const friendlyName = cardMatch[3];
-
                 if (internalDeviceNames.some(internalName => driverName.startsWith(internalName))) {
                     internalCardNumbers.add(cardNum);
                 } else {
@@ -284,44 +277,33 @@ const sendOutputs = async () => {
 
         for (const output of mpdOutputs) {
             let isInternal = false;
-            let isRenamed = false;
-
             if (output.attribute && output.attribute.startsWith('device "hw:')) {
                 const hwMatch = output.attribute.match(/hw:(\d+),/);
                 if (hwMatch) {
                     const cardNum = hwMatch[1];
-
                     if (internalCardNumbers.has(cardNum)) {
                         isInternal = true;
                     } else if (externalDeviceMap[cardNum]) {
                         output.outputname = externalDeviceMap[cardNum];
-                        isRenamed = true;
                     }
                 }
             }
-
-            if (!isInternal) {
-                outputsToSend.push(output);
-            }
+            if (!isInternal) outputsToSend.push(output);
         }
-
         io.emit('outputsList', outputsToSend);
-
     } catch (err) {
         console.error(`[MPD] Error getting outputs: ${err.message}`);
         try {
             const outputsStr = await sendMpdCommand('outputs');
-            const mpdOutputs = mpd.parseList(outputsStr);
-            io.emit('outputsList', mpdOutputs);
+            io.emit('outputsList', mpd.parseList(outputsStr));
         } catch (fallbackErr) {
-            console.error(`[MPD] Fallback getOutputs failed: ${fallbackErr.message}`);
             io.emit('outputsList', []);
         }
     }
 };
 
-const sendQueue = async () => { try { const queueStr = await sendMpdCommand('playlistinfo'); const queue = mpd.parseList(queueStr); io.emit('queueList', queue); } catch (err) { console.error(`[MPD] Error getting queue: ${err.message}`); } };
-const sendPlaylists = async () => { try { const playlistsStr = await sendMpdCommand('listplaylists'); const playlists = mpd.parseList(playlistsStr); io.emit('playlistsList', playlists); } catch (err) { console.error(`[MPD] Error getting playlists: ${err.message}`); } };
+const sendQueue = async () => { try { const queueStr = await sendMpdCommand('playlistinfo'); io.emit('queueList', mpd.parseList(queueStr)); } catch (err) { console.error(`[MPD] Error getting queue: ${err.message}`); } };
+const sendPlaylists = async () => { try { const playlistsStr = await sendMpdCommand('listplaylists'); io.emit('playlistsList', mpd.parseList(playlistsStr)); } catch (err) { console.error(`[MPD] Error getting playlists: ${err.message}`); } };
 
 // --- 11. Path Validation Helper ---
 const MUSIC_DIR_RESOLVED = path.resolve(CONFIG.MUSIC_DIR);
@@ -335,15 +317,23 @@ function validateMusicPath(relativePath) {
 
 // --- 11b. OAuth Routes for Tidal & Qobuz ---
 
-// Helper to get the base URL
-const getBaseUrl = (req) => `${req.protocol}://${req.get('host')}`;
-
 // 1. TIDAL Auth Routes
 app.get('/auth/tidal', (req, res) => {
     const clientId = process.env.TIDAL_CLIENT_ID;
-    const redirectUri = `${getBaseUrl(req)}/auth/tidal/callback`;
-    // Standard OAuth 2.0 flow URL (Check Tidal documentation for exact scope/URL)
-    const authUrl = `https://login.tidal.com/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=r_usr+w_usr`;
+    // HERE IS THE FIX: Using the configured URI from .env
+    const redirectUri = CONFIG.REDIRECT_URI;
+
+    if (!clientId) {
+        console.error('[Auth] Missing TIDAL_CLIENT_ID in .env');
+        return res.redirect('/?error=config_error');
+    }
+
+    // Valid Scopes
+    const scope = encodeURIComponent('r_usr w_usr');
+
+    console.log(`[Auth] Initiating Tidal Login. Redirecting to: ${redirectUri}`);
+
+    const authUrl = `https://login.tidal.com/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
     res.redirect(authUrl);
 });
 
@@ -351,19 +341,20 @@ app.get('/auth/tidal/callback', async (req, res) => {
     const { code } = req.query;
     if (!code) return res.redirect('/?error=auth_failed');
 
+    console.log(`[Auth] Received Tidal Callback code. Exchanging for token...`);
+
     try {
-        // Exchange code for token
-        const tokenResponse = await axios.post('https://auth.tidal.com/v1/oauth2/token', new URLSearchParams({
-            grant_type: 'authorization_code',
-            code: code,
-            client_id: process.env.TIDAL_CLIENT_ID,
-            client_secret: process.env.TIDAL_CLIENT_SECRET,
-            redirect_uri: `${getBaseUrl(req)}/auth/tidal/callback`
-        }));
+        const params = new URLSearchParams();
+        params.append('grant_type', 'authorization_code');
+        params.append('code', code);
+        params.append('client_id', process.env.TIDAL_CLIENT_ID);
+        params.append('client_secret', process.env.TIDAL_CLIENT_SECRET);
+        // MUST MATCH EXACTLY the URI sent in the first step
+        params.append('redirect_uri', CONFIG.REDIRECT_URI);
 
-        const { access_token, refresh_token, expires_in } = tokenResponse.data;
+        const tokenResponse = await axios.post('https://auth.tidal.com/v1/oauth2/token', params);
+        const { access_token, refresh_token } = tokenResponse.data;
 
-        // Save to DB
         await new Promise((resolve, reject) => {
             db.run(
                 `INSERT OR REPLACE INTO services (service, token, password) VALUES (?, ?, ?)`,
@@ -383,10 +374,13 @@ app.get('/auth/tidal/callback', async (req, res) => {
 // 2. QOBUZ Auth Routes
 app.get('/auth/qobuz', (req, res) => {
     const appId = process.env.QOBUZ_APP_ID;
-    // Qobuz doesn't always have a standard public OAuth web flow documented publicly.
-    // Assuming standard flow or bundle ID flow here:
-    const redirectUri = `${getBaseUrl(req)}/auth/qobuz/callback`;
-    // Note: You may need to adjust this URL based on your specific Qobuz API partnership details
+    // Assuming same pattern for Qobuz - you should add QOBUZ_REDIRECT_URI to .env if needed
+    // For now, building it dynamically or using a separate env var if you wish.
+    // We'll stick to the dynamic base or a fixed one if you add it.
+    // Let's use the same host as TIDAL for consistency:
+    const host = new URL(CONFIG.REDIRECT_URI).origin;
+    const redirectUri = `${host}/auth/qobuz/callback`;
+
     const authUrl = `https://www.qobuz.com/oauth/authorize?response_type=code&app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
     res.redirect(authUrl);
 });
@@ -400,8 +394,6 @@ app.get('/auth/qobuz/callback', async (req, res) => {
             app_id: process.env.QOBUZ_APP_ID,
             app_secret: process.env.QOBUZ_APP_SECRET,
             code: code
-            // Note: Qobuz API varies. Sometimes it just wants username/password via API, 
-            // but for "button press" redirect, you need their OAuth implementation.
         });
 
         const token = tokenResponse.data.user_auth_token;
@@ -469,12 +461,8 @@ io.on('connection', (socket) => {
 
     socket.on('getPlaylists', () => safeExecute(sendPlaylists, 'getPlaylists'));
 
-    // --- MODIFIED: 'getSongs' now also fetches from our DB ---
     socket.on('getSongs', ({ artist, album }) => safeExecute(async () => {
-        if (!artist || !album) {
-            throw new Error('Artist and album required');
-        }
-
+        if (!artist || !album) { throw new Error('Artist and album required'); }
         const songsStr = await sendMpdCommand('find', ['albumartist', artist, 'album', album]);
         const songs = mpd.parseList(songsStr);
 
@@ -487,9 +475,8 @@ io.on('connection', (socket) => {
                 });
             });
         } catch (dbErr) {
-            console.error(`[DB] Error querying metadata for ${artist} - ${album}: ${dbErr.message}`);
+            console.error(`[DB] Error querying metadata: ${dbErr.message}`);
         }
-
         socket.emit('songList', { album, songs, metadata });
     }, 'getSongs'));
 
@@ -525,11 +512,11 @@ io.on('connection', (socket) => {
     socket.on('deleteAlbum', ({ artist, album }) => safeExecute(async () => { if (!artist || !album) { throw new Error('Artist and album required'); } const songsStr = await sendMpdCommand('find', ['albumartist', artist, 'album', album]); const songs = mpd.parseList(songsStr); if (songs.length === 0) { throw new Error('Album not found'); } const albumRelPath = path.dirname(songs[0].file); const fullPath = validateMusicPath(albumRelPath); console.log(`[FS] Deleting directory: ${fullPath}`); await fs.rm(fullPath, { recursive: true, force: true }); await sendMpdCommand('update'); socket.emit('message', { text: 'Album deleted successfully' }); }, 'deleteAlbum'));
     socket.on('deleteArtist', (artist) => safeExecute(async () => { if (!artist) throw new Error('Artist name required'); const songsStr = await sendMpdCommand('find', ['albumartist', artist]); const songs = mpd.parseList(songsStr); if (songs.length === 0) { throw new Error('Artist not found'); } const artistRelPath = path.dirname(path.dirname(songs[0].file)); const fullPath = validateMusicPath(artistRelPath); console.log(`[FS] Deleting directory: ${fullPath}`); await fs.rm(fullPath, { recursive: true, force: true }); await sendMpdCommand('update'); socket.emit('message', { text: 'Artist deleted successfully' }); }, 'deleteArtist'));
 
-    // --- MODIFIED: 'getSystemInfo' handler ---
+    // --- System Info ---
     socket.on('getSystemInfo', () => safeExecute(async () => {
         const osVersion = `ResonanceOS 1.0`;
         const kernel = os.release();
-        const cpuLoad = (os.loadavg()[0] * 100 / os.cpus().length).toFixed(0); // <-- FIX: Removed '%'
+        const cpuLoad = (os.loadavg()[0] * 100 / os.cpus().length).toFixed(0);
         const audioServer = 'Pipewire 1.0.3';
         socket.emit('systemInfo', { osVersion, kernel, audioServer, cpuLoad });
     }, 'getSystemInfo'));
@@ -539,68 +526,30 @@ io.on('connection', (socket) => {
         db.all("SELECT * FROM services", [], (err, rows) => {
             if (err) throw err;
             const services = {};
-            rows.forEach(row => {
-                services[row.service] = row;
-            });
+            rows.forEach(row => { services[row.service] = row; });
             socket.emit('servicesList', services);
         });
     }, 'getServices'));
 
-    socket.on('saveService', (data) => safeExecute(async () => {
-        const { service, username, password, token, appid } = data;
-        if (!service) throw new Error('Service name required');
-
-        await new Promise((resolve, reject) => {
-            db.run(
-                `INSERT OR REPLACE INTO services (service, username, password, token, appid) VALUES (?, ?, ?, ?, ?)`,
-                [service, username, password, token, appid],
-                (err) => {
-                    if (err) return reject(err);
-                    resolve();
-                }
-            );
-        });
-
-        console.log(`[Services] Saved credentials for ${service}`);
-        socket.emit('message', { text: `${service} settings saved.` });
-
-        // Ideally, we would restart MPD or reload config here if we were writing to mpd.conf
-        // For now, we just store them.
-    }, 'saveService'));
-
-    // --- ADDED: New Metadata Fetch Handler ---
+    // --- Metadata Fetch Handler ---
     socket.on('fetchMetadata', ({ artist, album }) => safeExecute(async () => {
         if (!artist || !album) throw new Error('Artist and Album required to fetch metadata');
-
-        // --- THIS IS THE FIX ---
-        // 1. Clean the album title, removing parentheses/brackets
         const cleanAlbum = album.replace(/ \(.*\)| \[.*\]/g, '').trim();
         console.log(`[Metadata] Fetching for ${artist} - ${album} (Searching as: ${cleanAlbum})`);
-        // --- END OF FIX ---
 
         const songsStr = await sendMpdCommand('find', ['albumartist', artist, 'album', album]);
         const songs = mpd.parseList(songsStr);
-        if (songs.length === 0) {
-            console.error(`[Metadata] Album not found in MPD: ${artist} - ${album}`);
-            throw new Error('Album not found in MPD');
-        }
+        if (songs.length === 0) { throw new Error('Album not found in MPD'); }
 
         const albumRelPath = path.dirname(songs[0].file);
         const albumFullPath = validateMusicPath(albumRelPath);
-
-        // --- THIS IS THE FIX ---
-        // 2. Use the cleanAlbum name in the API URL
         const url = `https://www.theaudiodb.com/api/v1/json/2/searchalbum.php?s=${encodeURIComponent(artist)}&a=${encodeURIComponent(cleanAlbum)}`;
-        // --- END OF FIX ---
 
         const response = await axios.get(url, { timeout: 8000 });
         const data = response.data.album ? response.data.album[0] : null;
 
         if (!data) {
-            // --- THIS IS THE FIX ---
-            // 3. Log the *clean* name so we know what failed
             console.warn(`[Metadata] No results from AudioDB for ${artist} - ${cleanAlbum}`);
-            // --- END OF FIX ---
             throw new Error('No metadata found online for this album');
         }
 
@@ -624,7 +573,7 @@ io.on('connection', (socket) => {
                 });
                 console.log(`[Metadata] Downloaded new cover art for ${album}`);
             } catch (artErr) {
-                console.error(`[Metadata] Failed to download art for ${album}: ${artErr.message}`);
+                console.error(`[Metadata] Failed to download art: ${artErr.message}`);
             }
         }
 
@@ -632,17 +581,13 @@ io.on('connection', (socket) => {
             db.run(
                 `INSERT OR REPLACE INTO albums (artist, album, year, description) VALUES (?, ?, ?, ?)`,
                 [metadata.artist, metadata.album, metadata.year, metadata.description],
-                function (err) { // Must use function() to get 'this'
-                    if (err) {
-                        console.error(`[DB] Error saving metadata: ${err.message}`);
-                        return reject(err);
-                    }
-                    console.log(`[DB] Saved metadata for ${artist} - ${album}. Rows affected: ${this.changes}`);
+                function (err) {
+                    if (err) { console.error(`[DB] Error saving metadata: ${err.message}`); return reject(err); }
+                    console.log(`[DB] Saved metadata for ${artist} - ${album}. Rows: ${this.changes}`);
                     resolve();
                 }
             );
         });
-
         socket.emit('metadataFetched');
     }, 'fetchMetadata'));
 
@@ -670,64 +615,33 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 // --- 14. Main Server Startup ---
 const init = async () => {
     try {
-        // 1. Initialize Database
         db = new sqlite3.Database(CONFIG.DB_PATH, (err) => {
-            if (err) {
-                console.error(`[DB] Error opening database: ${err.message}`);
-                process.exit(1);
-            }
+            if (err) { console.error(`[DB] Error opening database: ${err.message}`); process.exit(1); }
             console.log(`[DB] Connected to SQLite database at ${CONFIG.DB_PATH}`);
         });
 
         await new Promise((resolve, reject) => {
-            db.run(`
-                CREATE TABLE IF NOT EXISTS albums (
-                    artist TEXT NOT NULL,
-                    album TEXT NOT NULL,
-                    year INTEGER,
-                    description TEXT,
-                    PRIMARY KEY (artist, album)
-                )
-            `, (err) => {
+            db.run(`CREATE TABLE IF NOT EXISTS albums (artist TEXT NOT NULL, album TEXT NOT NULL, year INTEGER, description TEXT, PRIMARY KEY (artist, album))`, (err) => {
                 if (err) return reject(err);
-
-                // Create Services Table
-                db.run(`
-                    CREATE TABLE IF NOT EXISTS services (
-                        service TEXT PRIMARY KEY,
-                        username TEXT,
-                        password TEXT,
-                        token TEXT,
-                        appid TEXT
-                    )
-                `, (err) => {
-                    if (err) {
-                        console.error(`[DB] Error creating services table: ${err.message}`);
-                        return reject(err);
-                    }
-                    console.log('[DB] Tables "albums" and "services" are ready.');
+                db.run(`CREATE TABLE IF NOT EXISTS services (service TEXT PRIMARY KEY, username TEXT, password TEXT, token TEXT, appid TEXT)`, (err) => {
+                    if (err) { console.error(`[DB] Error creating services table: ${err.message}`); return reject(err); }
+                    console.log('[DB] Tables ready.');
                     resolve();
                 });
             });
         });
 
-        // 2. Connect to MPD
         await connectMPD();
 
-        // 3. Start Web Server
         server.listen(CONFIG.PORT, '0.0.0.0', () => {
-            console.log(`[Server] Listening on all interfaces, port ${CONFIG.PORT}`);
+            console.log(`[Server] Listening on port ${CONFIG.PORT}`);
             console.log(`[Server] Music directory: ${CONFIG.MUSIC_DIR}`);
-            console.log(`[Server] Environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`[Server] Redirect URI: ${CONFIG.REDIRECT_URI}`);
         });
 
         server.on('error', (err) => {
             if (err.code === 'EADDRINUSE') {
                 console.error(`\n❌ Port ${CONFIG.PORT} is already in use!`);
-                console.error('\nOptions:');
-                console.error(`  1. Kill existing process: sudo lsof -i :${CONFIG.PORT}`);
-                console.error(`  2. Use different port: PORT=3001 node server.js`);
-                console.error(`  3. Stop other server: pkill node\n`);
                 process.exit(1);
             } else {
                 console.error('[Server] Error:', err);
