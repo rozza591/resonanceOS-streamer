@@ -9,6 +9,12 @@ class MPDPlayer {
 
     play(uri, clear = false) {
         console.log('[MPD Player] Playing:', uri);
+
+        // Pause Tidal if playing
+        if (window.tidalPlayer) {
+            window.tidalPlayer.pause();
+        }
+
         socket.emit('playTrack', { uri, clear, service: 'local' });
     }
 

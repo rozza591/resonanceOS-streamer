@@ -2,8 +2,8 @@
 import { io } from 'socket.io-client';
 
 export const socket = io({
-    path: '/socket.io/',
-    transports: ['websocket', 'polling']
+    transports: ['websocket'],
+    autoConnect: true
 });
 
 // Export socket events for use in other modules

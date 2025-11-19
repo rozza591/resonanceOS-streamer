@@ -1,6 +1,8 @@
+import { socket } from './socket.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- 1. Connect to Socket.io ---
-    const socket = io();
+    // Socket is imported from module
 
     // --- 2. Select DOM Elements ---
 
@@ -702,9 +704,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <span class="track-duration">${formatTime(track?.duration || 0)}</span>
                 `;
-                li.addEventListener('click', () => {
-                    socket.emit('playTrack', { uri: `tidal://track/${track.id}`, service: 'tidal', clear: true });
-                    showToast(`Playing ${track.title}...`, 'info');
+                li.addEventListener('click', async () => {
+                    if (window.tidalPlayer) {
+                        try {
+                            await window.tidalPlayer.play(track.id);
+                            showToast(`Playing ${track.title} on Tidal...`, 'info');
+                        } catch (err) {
+                            console.error('Tidal playback error:', err);
+                            showToast('Failed to play on Tidal', 'error');
+                        }
+                    } else {
+                        // Fallback or error if SDK not loaded
+                        showToast('Tidal Player not initialized', 'error');
+                    }
                     closeModal(libraryModal);
                 });
                 ul.appendChild(li);
@@ -713,6 +725,54 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+
+    // --- 6b. Dual Player Logic ---
+    // currentSource is already declared above
+
+    window.addEventListener('tidal:state', (e) => {
+        const { state, data } = e.detail;
+        console.log('[App] Tidal State:', state, data);
+
+        if (state === 'play' || state === 'playing') {
+            currentSource = 'tidal';
+            updatePlayPauseIcon(true);
+            // Pause MPD if it's playing (handled in tidal-player.js too, but good to be safe)
+            socket.emit('pause');
+        } else if (state === 'pause') {
+            updatePlayPauseIcon(false);
+        } else if (state === 'ended') {
+            updatePlayPauseIcon(false);
+        }
+    });
+
+    window.addEventListener('tidal:time', (e) => {
+        if (currentSource !== 'tidal') return;
+        const { current, duration } = e.detail;
+
+        if (seekSlider) {
+            seekSlider.max = duration;
+            seekSlider.value = current;
+        }
+        if (timeCurrent) timeCurrent.textContent = formatTime(current);
+        if (timeDuration) timeDuration.textContent = formatTime(duration);
+    });
+
+    function updatePlayPauseIcon(isPlaying) {
+        if (!btnPlayPause) return;
+        if (isPlaying) {
+            btnPlayPause.classList.add('playing');
+            btnPlayPause.innerHTML = `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 4h4v16H6zM14 4h4v16h-4z" />
+                </svg>`;
+        } else {
+            btnPlayPause.classList.remove('playing');
+            btnPlayPause.innerHTML = `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 3l14 9-14 9V3z" />
+                </svg>`;
+        }
+    }
 
     // --- 7. Socket Handlers ---
 

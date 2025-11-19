@@ -1,8 +1,10 @@
 // Main entry point for Vite bundler
-import './style.css';
 import { socket } from './socket.js';
 import tidalPlayer from './tidal-player.js';
 import mpdPlayer from './mpd-player.js';
+import './legacy-app.js';
+// Register Tidal Web Components
+import '@tidal-music/player-web-components';
 
 // Import the original app.js logic (will be refactored incrementally)
 // For now, we'll keep most logic inline and gradually modularize

@@ -111,11 +111,20 @@ const upload = multer({
 });
 
 // --- 6. Serve Front-End & Music Library ---
-app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/music', express.static(CONFIG.MUSIC_DIR));
-app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'public', 'index.html')); });
+
+// Serve static files based on environment
+if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(path.join(__dirname, 'dist')));
+    app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'dist', 'index.html')); });
+} else {
+    // In development, we rely on Vite (or serve public for legacy fallback)
+    app.use(express.static(path.join(__dirname, 'public')));
+    app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
+}
+
 app.get('/health', (req, res) => { res.json({ status: clientReady ? 'healthy' : 'degraded', mpdConnected: clientReady, uptime: process.uptime() }); });
 
 // --- 7. HTTP Route for File Uploads ---
@@ -382,6 +391,16 @@ app.get('/api/config', (req, res) => {
     });
 });
 
+// Get current Tidal access token for frontend SDK
+app.get('/api/auth/token', async (req, res) => {
+    try {
+        const creds = await getTidalCredentials();
+        res.json({ token: creds.accessToken });
+    } catch (error) {
+        res.status(401).json({ error: 'Not authenticated' });
+    }
+});
+
 app.get('/api/tidal/search', async (req, res) => {
     const { query, type, limit } = req.query;
     if (!query) return res.status(400).json({ error: 'Query required' });
@@ -608,13 +627,9 @@ io.on('connection', (socket) => {
 
     socket.on('addToQueue', (uri) => safe(async () => {
         if (uri.includes('tidal') || /^\d+$/.test(uri)) {
-            const id = uri.split('/').pop();
-            const creds = await getTidalCredentials();
-            const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                params: { audioquality: 'HI_RES', playbackmode: 'STREAM', assetpresentation: 'FULL' },
-                headers: getWebHeaders(creds)
-            });
-            if (res.data.url) await sendMpdCommand('add', [res.data.url]);
+            // Tidal tracks cannot be added to MPD queue directly
+            // We could emit an event to play it immediately, or just notify user
+            socket.emit('error', { message: 'Adding Tidal tracks to MPD queue is not supported. Play directly.' });
         } else {
             await sendMpdCommand('add', [uri]);
         }
