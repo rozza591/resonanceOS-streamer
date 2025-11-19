@@ -12,10 +12,10 @@ const fs = require('fs').promises; // Use promises API
 const fsSync = require('fs'); // For sync operations where needed
 const musicMetadata = require('music-metadata');
 const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
-const os = require('os');
+const crypto = require('crypto'); // ADDED for PKCE
+const session = require('express-session'); // ADDED for PKCE
 const axios = require('axios');
-const sqlite3 = require('sqlite3');
+const sqlite3 = require('sqlite3').verbose();
 const util = require('util');
 const execAsync = util.promisify(exec);
 
@@ -113,6 +113,15 @@ const upload = multer({
 
 // --- 6. Serve Front-End & Music Library ---
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
+
+// ADDED: Session Middleware for PKCE
+app.use(session({
+    secret: 'resonance-secret-key', // In production, use a secure random string
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false } // Set to true if using HTTPS
+}));
 app.use('/music', express.static(CONFIG.MUSIC_DIR));
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'public', 'index.html')); });
 app.get('/health', (req, res) => { res.json({ status: clientReady ? 'healthy' : 'degraded', mpdConnected: clientReady, uptime: process.uptime() }); });
@@ -162,21 +171,39 @@ app.post('/upload', uploadLimiter, upload.array('musicFiles'), async (req, res) 
 
 // --- 8. Auth Routes (TIDAL & QOBUZ) ---
 
+// Helper to generate PKCE Verifier and Challenge
+function base64URLEncode(str) {
+    return str.toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+}
+
+function sha256(buffer) {
+    return crypto.createHash('sha256').update(buffer).digest();
+}
+
 // TIDAL
 app.get('/auth/tidal', (req, res) => {
     const clientId = process.env.TIDAL_CLIENT_ID;
-    if (!clientId) return res.send('<h1>Error</h1><p>Missing TIDAL_CLIENT_ID in .env</p>');
+    const redirectUri = CONFIG.REDIRECT_URI;
+    const scope = 'playback user.read collection.read playlists.read search.read';
 
-    // Scopes must match your Dashboard exactly
-    const scope = encodeURIComponent('playback user.read collection.read playlists.read search.read');
-    const authUrl = `https://login.tidal.com/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(CONFIG.REDIRECT_URI)}&scope=${scope}`;
+    // Generate PKCE Verifier and Challenge
+    const verifier = base64URLEncode(crypto.randomBytes(32));
+    const challenge = base64URLEncode(sha256(verifier));
 
-    console.log(`[Auth] Redirecting to Tidal: ${authUrl}`);
+    // Store verifier in session
+    req.session.tidalCodeVerifier = verifier;
+
+    const authUrl = `https://login.tidal.com/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&code_challenge=${challenge}&code_challenge_method=S256`;
+
+    console.log('[Auth] Redirecting to Tidal with PKCE:', authUrl);
     res.redirect(authUrl);
 });
 
 app.get('/auth/tidal/callback', async (req, res) => {
-    console.log('[Auth] Tidal callback received. Query params:', req.query); // <--- ADDED LOGGING
+    console.log('[Auth] Tidal callback received. Query params:', req.query);
 
     const { code, error, error_description } = req.query;
 
@@ -190,6 +217,13 @@ app.get('/auth/tidal/callback', async (req, res) => {
         return res.redirect('/?error=no_code');
     }
 
+    // Retrieve Verifier from Session
+    const codeVerifier = req.session.tidalCodeVerifier;
+    if (!codeVerifier) {
+        console.error('[Auth] No code verifier found in session. Session might have expired.');
+        return res.redirect('/?error=session_expired&desc=Please try logging in again.');
+    }
+
     const clientId = process.env.TIDAL_CLIENT_ID;
     const clientSecret = process.env.TIDAL_CLIENT_SECRET;
 
@@ -197,15 +231,17 @@ app.get('/auth/tidal/callback', async (req, res) => {
         return res.status(500).send('<h1>Configuration Error</h1><p>Your TIDAL_CLIENT_SECRET in .env looks invalid. Did you forget to replace the *omitted placeholder?</p>');
     }
 
-    console.log(`[Auth] Exchanging code for token...`);
+    console.log(`[Auth] Exchanging code for token using PKCE...`);
 
     try {
         const params = new URLSearchParams();
         params.append('grant_type', 'authorization_code');
         params.append('code', code);
         params.append('redirect_uri', CONFIG.REDIRECT_URI);
+        params.append('client_id', clientId); // Tidal sometimes requires client_id in body too
+        params.append('code_verifier', codeVerifier); // PKCE Verifier
 
-        // FIX: Use Basic Auth Header (Preferred by Tidal)
+        // Use Basic Auth Header
         const authHeader = 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
         const response = await axios.post('https://auth.tidal.com/v1/oauth2/token', params, {
