@@ -327,9 +327,11 @@ async function getTidalSession(token) {
         const response = await axios.get('https://api.tidal.com/v1/sessions', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
+        console.log('[Tidal] Session Data:', response.data); // DEBUG LOG
         return response.data; // Contains userId, countryCode
     } catch (error) {
         console.error('[Tidal] Failed to get session:', error.message);
+        if (error.response) console.error('[Tidal] Session Error Data:', error.response.data);
         throw error;
     }
 }
@@ -345,6 +347,8 @@ app.get('/api/tidal/search', async (req, res) => {
         const searchType = type || 'ARTISTS,ALBUMS,TRACKS,PLAYLISTS';
         const limit = 10;
 
+        console.log(`[Tidal] Searching for "${query}" with types "${searchType}" and country "${session.countryCode}"`);
+
         const response = await axios.get('https://api.tidal.com/v1/search', {
             params: {
                 query,
@@ -358,6 +362,10 @@ app.get('/api/tidal/search', async (req, res) => {
         res.json(response.data);
     } catch (error) {
         console.error('[Tidal] Search failed:', error.message);
+        if (error.response) {
+            console.error('[Tidal] Search Error Data:', error.response.data);
+            console.error('[Tidal] Search Error Params:', error.config.params);
+        }
         res.status(500).json({ error: 'Tidal search failed' });
     }
 });
@@ -371,6 +379,8 @@ app.get('/api/tidal/favorites/:type', async (req, res) => {
         const token = await getTidalToken();
         const session = await getTidalSession(token);
 
+        console.log(`[Tidal] Fetching favorites for user ${session.userId}, type: ${type}, country: ${session.countryCode}`);
+
         const response = await axios.get(`https://api.tidal.com/v1/users/${session.userId}/favorites/${type}`, {
             params: {
                 countryCode: session.countryCode,
@@ -382,6 +392,7 @@ app.get('/api/tidal/favorites/:type', async (req, res) => {
         res.json(response.data);
     } catch (error) {
         console.error(`[Tidal] Fetch favorites ${type} failed:`, error.message);
+        if (error.response) console.error(`[Tidal] Favorites Error Data:`, error.response.data);
         res.status(500).json({ error: `Failed to fetch Tidal ${type}` });
     }
 });
