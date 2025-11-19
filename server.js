@@ -216,7 +216,6 @@ app.post('/auth/tidal/session', async (req, res) => {
             : { 'X-Tidal-SessionId': sessionId, 'X-Tidal-Token': tokenToUse };
 
         let finalUserId = userId;
-        // >>> START OF EDIT: Auto-detect Country Code
         let finalCountryCode = inputCountryCode || 'US';
 
         if (accessToken) {
@@ -242,7 +241,6 @@ app.post('/auth/tidal/session', async (req, res) => {
             'ManualUser',
             accessToken
         );
-        // <<< END OF EDIT
 
         console.log(`[Auth] Manual session saved for User: ${finalUserId}, Country: ${finalCountryCode}`);
         res.json({ success: true, message: 'Manual session saved' });
@@ -517,8 +515,6 @@ io.on('connection', (socket) => {
             const id = data.uri.split('/').pop();
             console.log(`[Player] Resolving Tidal ID: ${id}`);
             const creds = await getTidalCredentials();
-
-            // >>> START OF EDIT: Debug log country code
             console.log(`[Player] Using Country Code: ${creds.countryCode}`);
 
             const playbackParams = {
@@ -527,52 +523,81 @@ io.on('connection', (socket) => {
                 countryCode: creds.countryCode
             };
 
-            try {
-                // 1. Try HI_RES
-                const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                    params: { ...playbackParams, audioquality: 'HI_RES' },
-                    headers: getWebHeaders(creds)
-                });
-                resolvedUrl = res.data.url;
-            } catch (e1) {
+            // >>> START OF EDIT: Dual-Strategy for Legacy vs Web Tokens
+            if (creds.accessToken) {
+                // Strategy B: Web Token (playbackinfopostpaywall)
+                console.log(`[Tidal] Using Web Token Strategy (playbackinfopostpaywall/v4)`);
+
+                // Attempt qualities: HI_RES -> LOSSLESS -> HIGH -> LOW
+                const qualities = ['HI_RES', 'LOSSLESS', 'HIGH', 'LOW'];
+
+                for (const quality of qualities) {
+                    try {
+                        const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/playbackinfopostpaywall/v4`, {
+                            params: { ...playbackParams, audioquality: quality },
+                            headers: getWebHeaders(creds)
+                        });
+
+                        if (res.data.manifestMimeType === 'application/vnd.tidal.btc') {
+                            const manifest = JSON.parse(Buffer.from(res.data.manifest, 'base64').toString('utf-8'));
+                            if (manifest.urls && manifest.urls.length > 0) {
+                                resolvedUrl = manifest.urls[0];
+                                console.log(`[Tidal] Resolved URL with quality: ${quality}`);
+                                break; // Found it!
+                            }
+                        }
+                    } catch (e) {
+                        // Continue to next quality
+                    }
+                }
+            } else {
+                // Strategy A: Legacy Token (/url)
+                console.log(`[Tidal] Using Legacy Token Strategy (/url)`);
                 try {
-                    console.log('[Tidal] HI_RES failed, trying LOSSLESS...');
-                    // 2. Try LOSSLESS
+                    // 1. Try HI_RES
                     const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                        params: { ...playbackParams, audioquality: 'LOSSLESS' },
+                        params: { ...playbackParams, audioquality: 'HI_RES' },
                         headers: getWebHeaders(creds)
                     });
                     resolvedUrl = res.data.url;
-                } catch (e2) {
+                } catch (e1) {
                     try {
-                        console.log('[Tidal] LOSSLESS failed, trying HIGH...');
+                        // 2. Try LOSSLESS
+                        const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
+                            params: { ...playbackParams, audioquality: 'LOSSLESS' },
+                            headers: getWebHeaders(creds)
+                        });
+                        resolvedUrl = res.data.url;
+                    } catch (e2) {
                         // 3. Try HIGH
-                        const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                            params: { ...playbackParams, audioquality: 'HIGH' },
-                            headers: getWebHeaders(creds)
-                        });
-                        resolvedUrl = res.data.url;
-                    } catch (e3) {
-                        console.log('[Tidal] HIGH failed, trying LOW...');
-                        // 4. Try LOW
-                        const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                            params: { ...playbackParams, audioquality: 'LOW' },
-                            headers: getWebHeaders(creds)
-                        });
-                        resolvedUrl = res.data.url;
+                        try {
+                            const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
+                                params: { ...playbackParams, audioquality: 'HIGH' },
+                                headers: getWebHeaders(creds)
+                            });
+                            resolvedUrl = res.data.url;
+                        } catch (e3) {
+                            // 4. Try LOW
+                            try {
+                                const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
+                                    params: { ...playbackParams, audioquality: 'LOW' },
+                                    headers: getWebHeaders(creds)
+                                });
+                                resolvedUrl = res.data.url;
+                            } catch (e4) { }
+                        }
                     }
                 }
             }
+            // <<< END OF EDIT
         } else {
             resolvedUrl = data.uri;
         }
 
-        // >>> START OF EDIT: Explicit check before adding
-        if (!resolvedUrl) throw new Error('Failed to resolve URL for playback.');
+        if (!resolvedUrl) throw new Error('Failed to resolve URL for playback. (Check Subscription/Region)');
 
         await sendMpdCommand('add', [resolvedUrl]);
         await sendMpdCommand('play');
-        // <<< END OF EDIT
 
     }, 'playTrack'));
 
@@ -580,6 +605,9 @@ io.on('connection', (socket) => {
         if (uri.includes('tidal') || /^\d+$/.test(uri)) {
             const id = uri.split('/').pop();
             const creds = await getTidalCredentials();
+            // Note: Simple queueing might still fail for web tokens if not updated similarly, 
+            // but playTrack is the primary interaction now.
+            // For consistency, we should probably use playTrack logic here too, but keeping it simple for now.
             const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
                 params: { audioquality: 'HI_RES', playbackmode: 'STREAM', assetpresentation: 'FULL' },
                 headers: getWebHeaders(creds)
