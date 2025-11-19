@@ -586,6 +586,23 @@ io.on('connection', (socket) => {
                     if (e1.response && e1.response.status === 401) throw e1;
                 }
             }
+
+            // FALLBACK: If DASH didn't work (bearer token issue), try legacy /url endpoint
+            if (!resolvedUrl && creds.accessToken) {
+                console.log(`[Tidal] DASH failed, attempting fallback to legacy /url endpoint...`);
+                try {
+                    const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
+                        params: { ...playbackParams, audioquality: 'HI_RES' },
+                        headers: getWebHeaders(creds)
+                    });
+                    if (res.data.url) {
+                        resolvedUrl = res.data.url;
+                        console.log(`[Tidal] Fallback successful - got direct URL`);
+                    }
+                } catch (fallbackErr) {
+                    console.warn(`[Tidal] Fallback to /url also failed:`, fallbackErr.message);
+                }
+            }
         } else {
             resolvedUrl = data.uri;
         }
