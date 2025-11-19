@@ -116,11 +116,13 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/music', express.static(CONFIG.MUSIC_DIR));
 
 // Serve static files based on environment
-if (process.env.NODE_ENV === 'production') {
+// Default to serving dist (production build) unless explicitly in development mode
+if (process.env.NODE_ENV !== 'development') {
     app.use(express.static(path.join(__dirname, 'dist')));
     app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'dist', 'index.html')); });
 } else {
     // In development, we rely on Vite (or serve public for legacy fallback)
+    // Note: This fallback is limited and may not serve modules correctly without Vite
     app.use(express.static(path.join(__dirname, 'public')));
     app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 }
