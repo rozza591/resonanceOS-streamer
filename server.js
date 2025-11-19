@@ -210,6 +210,7 @@ app.post('/auth/tidal/session', async (req, res) => {
 
     try {
         console.log(`[Auth] Verifying manual session...`);
+        console.log(`[Auth] SessionId: ${sessionId ? 'provided' : 'none'}, UserId: ${userId || 'none'}, AccessToken: ${accessToken ? 'provided' : 'none'}`);
 
         const headers = accessToken
             ? { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
@@ -227,15 +228,20 @@ app.post('/auth/tidal/session', async (req, res) => {
             }
             if (!finalUserId) throw new Error('Could not retrieve User ID from Access Token');
         } else {
-            await axios.get(`https://api.tidal.com/v1/users/${userId}`, {
+            console.log(`[Auth] Verifying legacy session with headers:`, headers);
+            console.log(`[Auth] Calling /users/${userId} with countryCode: ${finalCountryCode}`);
+
+            const verifyRes = await axios.get(`https://api.tidal.com/v1/users/${userId}`, {
                 headers: headers,
                 params: { countryCode: finalCountryCode }
             });
+
+            console.log(`[Auth] Verification successful. User data:`, verifyRes.data);
         }
 
         await saveSessionToDB(
             sessionId || 'bearer',
-            finalCountryCode, // Use the detected or verified country code
+            finalCountryCode,
             finalUserId,
             tokenToUse,
             'ManualUser',
@@ -245,7 +251,11 @@ app.post('/auth/tidal/session', async (req, res) => {
         console.log(`[Auth] Manual session saved for User: ${finalUserId}, Country: ${finalCountryCode}`);
         res.json({ success: true, message: 'Manual session saved' });
     } catch (err) {
-        console.error(`[Auth] Invalid session provided: ${err.message}`);
+        console.error(`[Auth] Session validation failed:`, err.message);
+        if (err.response) {
+            console.error(`[Auth] Response status: ${err.response.status}`);
+            console.error(`[Auth] Response data:`, err.response.data);
+        }
         res.status(401).json({ error: 'The provided session/token is invalid or expired.' });
     }
 });
