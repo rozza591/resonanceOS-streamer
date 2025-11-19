@@ -3,10 +3,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
 
     // --- 2. Select DOM Elements ---
-    
+
     // Header
     const deviceName = document.getElementById('header-device-name');
-    
+
     // Main Player
     const albumArt = document.getElementById('album-art');
     const playerTitle = document.getElementById('player-title');
@@ -21,8 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnPrev = document.getElementById('btn-prev');
     const btnPlayPause = document.getElementById('btn-play-pause');
     const btnNext = document.getElementById('btn-next');
-    const visualizer = document.querySelector('.visualizer');
-    
+    const visualizerCanvas = document.getElementById('visualizer-canvas');
+    const ctx = visualizerCanvas.getContext('2d');
+
     // Footer
     const statusLight = document.getElementById('status-light');
     const statusText = document.getElementById('status-text');
@@ -30,11 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const statCpu = document.getElementById('stat-cpu');
     const statBuffer = document.getElementById('stat-buffer');
     const statLatency = document.getElementById('stat-latency');
-    
+
     // Modals
     const libraryModal = document.getElementById('library-modal');
     const settingsModal = document.getElementById('settings-modal');
-    
+
     // Library Modal Selectors
     const btnOpenLibrary = document.getElementById('btn-open-library');
     const btnCloseLibrary = document.getElementById('btn-close-library');
@@ -42,9 +43,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const libraryBackBtn = document.getElementById('library-back-btn');
     const libraryTitle = document.getElementById('library-title');
     const librarySearch = document.getElementById('library-search');
+    // Service Selectors
+    const tidalToken = document.getElementById('tidal-token');
+    const tidalPassword = document.getElementById('tidal-password');
+    const btnSaveTidal = document.getElementById('btn-save-tidal');
+    const qobuzUsername = document.getElementById('qobuz-username');
+    const qobuzPassword = document.getElementById('qobuz-password');
+    const qobuzAppid = document.getElementById('qobuz-appid');
+    const btnSaveQobuz = document.getElementById('btn-save-qobuz');
+
+    // Library Views
     const libraryViewArtists = document.getElementById('library-view-artists');
     const libraryViewAlbums = document.getElementById('library-view-albums');
     const libraryViewTracks = document.getElementById('library-view-tracks');
+    const libraryViewPlaylists = document.getElementById('library-view-playlists');
+    const libraryViewRadio = document.getElementById('library-view-radio');
+    const libraryTabs = document.querySelectorAll('.tab-btn');
+    const radioUrlInput = document.getElementById('radio-url-input');
+    const radioNameInput = document.getElementById('radio-name-input');
+    const btnAddRadio = document.getElementById('btn-add-radio');
+    const radioList = document.getElementById('radio-list');
+
+    // Queue Modal Selectors
+    const queueModal = document.getElementById('queue-modal');
+    const btnOpenQueue = document.getElementById('btn-open-queue');
+    const btnCloseQueue = document.getElementById('btn-close-queue');
+    const btnClearQueue = document.getElementById('btn-clear-queue');
+    const btnSavePlaylist = document.getElementById('btn-save-playlist');
+    const queueList = document.getElementById('queue-list');
 
     // Library Album Info Selectors
     const libraryAlbumInfo = document.getElementById('library-album-info');
@@ -54,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const libraryAlbumYear = document.getElementById('library-album-year');
     const libraryAlbumDescription = document.getElementById('library-album-description');
     const btnFetchMetadata = document.getElementById('btn-fetch-metadata');
-    
+
     // Settings Modal
     const btnOpenSettings = document.getElementById('btn-open-settings');
     const btnCloseSettings = document.getElementById('btn-close-settings');
@@ -66,12 +92,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnRescan = document.getElementById('btn-rescan');
     const btnReboot = document.getElementById('btn-reboot');
     const settingsSpinner = document.getElementById('settings-spinner');
+    const themeSelect = document.getElementById('theme-select');
 
     // Reboot Modal
     const rebootConfirmModal = document.getElementById('reboot-confirm-modal');
     const btnCloseRebootConfirm = document.getElementById('btn-close-reboot-confirm');
     const btnCancelReboot = document.getElementById('btn-cancel-reboot');
     const btnConfirmReboot = document.getElementById('btn-confirm-reboot');
+
+    // Kiosk Mode Selectors
+    const kioskMode = document.getElementById('kiosk-mode');
+    const btnKioskMode = document.getElementById('btn-kiosk-mode');
+    const btnExitKiosk = document.getElementById('btn-exit-kiosk');
+    const kioskArt = document.getElementById('kiosk-art');
+    const kioskTitle = document.getElementById('kiosk-title');
+    const kioskArtist = document.getElementById('kiosk-artist');
+    const kioskAlbum = document.getElementById('kiosk-album');
+    const kioskProgressBar = document.getElementById('kiosk-progress-bar');
 
     // Upload Modal
     const uploadModal = document.getElementById('upload-modal');
@@ -92,23 +129,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Toast Container
     const toastContainer = document.getElementById('toast-container');
-    
+
     // --- 3. Client-Side State ---
-    
-    let isSeeking = false; 
+
+    let isSeeking = false;
 
     let modalLoadState = {
         systemInfo: false,
         outputs: false
     };
-    
-    let playerTimer = null;     
-    let lastStatusTime = 0;     
-    let lastStatusElapsed = 0;  
+
+    let playerTimer = null;
+    let lastStatusTime = 0;
+    let lastStatusElapsed = 0;
     let lastStatusDuration = 0;
     let lastKnownSong = null;
     let isSwitchingOutput = false;
-    
+
     let filesToUpload = [];
 
     // Library navigation state
@@ -129,9 +166,9 @@ document.addEventListener('DOMContentLoaded', () => {
             settingsSpinner.classList.add('hidden');
         }
     };
-    
+
     // --- 4. Helper Functions ---
-    
+
     const formatTime = (seconds) => {
         if (isNaN(seconds) || seconds < 0) return '0:00';
         const m = Math.floor(seconds / 60);
@@ -152,8 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
         if (modal === libraryModal) {
             librarySpinner.classList.remove('hidden');
-            showLibraryView('artists'); 
-            librarySearch.value = ''; 
+            showLibraryView('artists');
+            librarySearch.value = '';
         }
         if (modal === settingsModal) {
             settingsSpinner.classList.remove('hidden');
@@ -167,12 +204,12 @@ document.addEventListener('DOMContentLoaded', () => {
             resetUploadForm();
         }
     }
-    
+
     const showToast = (message, type = 'info') => {
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
         toast.textContent = message;
-        
+
         toastContainer.appendChild(toast);
 
         setTimeout(() => {
@@ -182,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }, 3500);
     };
-    
+
     const stopPlayerTimer = () => {
         if (playerTimer) {
             clearInterval(playerTimer);
@@ -204,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 localElapsed = lastStatusDuration;
                 stopPlayerTimer(); // Stop timer when song ends
             }
-            
+
             // Update the UI
             seekSlider.value = localElapsed;
             timeCurrent.textContent = formatTime(localElapsed);
@@ -212,30 +249,30 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- 5. Modal Event Listeners ---
-    
+
     // Library Modal Listeners
     btnOpenLibrary.addEventListener('click', () => {
         openModal(libraryModal);
-        socket.emit('getArtists'); 
+        socket.emit('getArtists');
     });
     btnCloseLibrary.addEventListener('click', () => closeModal(libraryModal));
 
     libraryBackBtn.addEventListener('click', () => {
-        librarySearch.value = ''; 
+        librarySearch.value = '';
         if (currentLibraryView === 'tracks') {
             showLibraryView('albums', currentArtist);
-            socket.emit('getAlbums', currentArtist); 
+            socket.emit('getAlbums', currentArtist);
         } else if (currentLibraryView === 'albums') {
             showLibraryView('artists');
-            socket.emit('getArtists'); 
+            socket.emit('getArtists');
         }
     });
-    
+
     // Settings Modal Listeners
     btnOpenSettings.addEventListener('click', () => {
         openModal(settingsModal);
-        socket.emit('getSystemInfo'); 
-        socket.emit('getOutputs'); 
+        socket.emit('getSystemInfo');
+        socket.emit('getOutputs');
     });
     btnCloseSettings.addEventListener('click', () => closeModal(settingsModal));
 
@@ -248,25 +285,75 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCancelReboot.addEventListener('click', () => closeModal(rebootConfirmModal));
 
     // Global Modal Close Listener
-    [libraryModal, settingsModal, rebootConfirmModal, uploadModal].forEach(modal => { 
+    [libraryModal, settingsModal, rebootConfirmModal, uploadModal, queueModal].forEach(modal => {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) closeModal(modal);
         });
     });
 
+    // Queue Modal Listeners
+    btnOpenQueue.addEventListener('click', () => {
+        openModal(queueModal);
+        socket.emit('getStatus'); // Refresh queue
+    });
+    btnCloseQueue.addEventListener('click', () => closeModal(queueModal));
+
+    btnClearQueue.addEventListener('click', () => {
+        if (confirm('Clear the entire queue?')) {
+            socket.emit('clearQueue');
+        }
+    });
+
+    btnSavePlaylist.addEventListener('click', () => {
+        const name = prompt('Enter playlist name:');
+        if (name) {
+            socket.emit('saveQueue', name);
+            showToast('Playlist saved!', 'success');
+        }
+    });
+
+    // Library Tab Listeners
+    libraryTabs.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab-btn')) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+            const viewName = e.target.dataset.tab;
+            showLibraryView(viewName);
+
+            if (viewName === 'artists') socket.emit('getArtists');
+            // Actually, server.js doesn't have a 'getPlaylists' handler, it sends on connection and updates.
+            // Let's add a 'getPlaylists' handler to server.js later if needed, or just rely on the initial send.
+            // Wait, server.js line 323: sendPlaylists sends 'playlistsList'.
+            // And line 207: 'stored_playlist' event triggers sendPlaylists.
+            // So we just need to listen to 'playlistsList'.
+        }
+    });
+
+    // Radio Listeners
+    btnAddRadio.addEventListener('click', () => {
+        const url = radioUrlInput.value.trim();
+        const name = radioNameInput.value.trim() || 'New Station';
+        if (!url) return showToast('URL is required', 'error');
+
+        addRadioStation(name, url);
+        radioUrlInput.value = '';
+        radioNameInput.value = '';
+        showToast('Station added', 'success');
+    });
+
     // --- 6. Player Event Listeners ---
-    
+
     btnPlayPause.addEventListener('click', () => {
         const isPlaying = btnPlayPause.classList.contains('playing');
         socket.emit(isPlaying ? 'pause' : 'play');
     });
-    
+
     btnNext.addEventListener('click', () => socket.emit('next'));
     btnPrev.addEventListener('click', () => socket.emit('previous'));
-        
-    seekSlider.addEventListener('input', () => { 
-        isSeeking = true; 
-        timeCurrent.textContent = formatTime(seekSlider.value); 
+
+    seekSlider.addEventListener('input', () => {
+        isSeeking = true;
+        timeCurrent.textContent = formatTime(seekSlider.value);
     });
     seekSlider.addEventListener('change', () => {
         socket.emit('seek', parseFloat(seekSlider.value));
@@ -295,11 +382,46 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             btnConfirmReboot.disabled = false;
             btnConfirmReboot.textContent = 'Confirm Reboot';
-        }, 10000); 
+        }, 10000);
     });
 
-    // --- 8. File & Upload Logic ---
-    
+    // Kiosk Mode Listeners
+    btnKioskMode.addEventListener('click', () => {
+        kioskMode.classList.remove('hidden');
+        // Request full screen if possible
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(err => console.log(err));
+        }
+    });
+
+    btnExitKiosk.addEventListener('click', () => {
+        kioskMode.classList.add('hidden');
+        if (document.fullscreenElement) {
+            document.exitFullscreen().catch(err => console.log(err));
+        }
+    });
+
+    // --- 8. Theme Logic ---
+    const applyTheme = (theme) => {
+        if (theme === 'default') {
+            document.documentElement.removeAttribute('data-theme');
+        } else {
+            document.documentElement.setAttribute('data-theme', theme);
+        }
+        themeSelect.value = theme;
+    };
+
+    const savedTheme = localStorage.getItem('resonance_theme') || 'default';
+    applyTheme(savedTheme);
+
+    themeSelect.addEventListener('change', (e) => {
+        const theme = e.target.value;
+        applyTheme(theme);
+        localStorage.setItem('resonance_theme', theme);
+    });
+
+    // --- 9. File & Upload Logic ---
+
     const allowedExtensions = ['.mp3', '.flac', '.m4a', '.ogg', '.wav', '.opus'];
 
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -332,19 +454,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleFiles = async (files) => {
         fileListSpinner.classList.remove('hidden');
         let validFiles = [];
-        
+
         for (const file of files) {
             const dotIndex = file.name.lastIndexOf('.');
             const ext = (dotIndex > -1) ? file.name.substring(dotIndex).toLowerCase() : '';
 
             if (!allowedExtensions.includes(ext)) {
                 showToast(`File type not allowed: ${file.name}`, 'error');
-                continue; 
+                continue;
             }
 
             let artist = '';
             let album = '';
-            
+
             try {
                 const metadata = await window.musicMetadata.parseBlob(file);
                 artist = metadata.common.albumartist || metadata.common.artist || '';
@@ -352,14 +474,14 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.warn(`Could not read metadata for ${file.name}: ${error.message}`);
             }
-            
+
             validFiles.push({
                 fileObject: file,
                 artist: artist,
                 album: album
             });
         }
-        
+
         filesToUpload = [...filesToUpload, ...validFiles];
         fileListSpinner.classList.add('hidden');
         updateFileListUI();
@@ -378,10 +500,10 @@ document.addEventListener('DOMContentLoaded', () => {
         filesToUpload.forEach((fileData, index) => {
             const li = document.createElement('div');
             li.className = 'upload-file-item';
-            
+
             const artist = fileData.artist || defaultArtist;
             const album = fileData.album || defaultAlbum;
-            
+
             fileData.artist = artist;
             fileData.album = album;
 
@@ -400,7 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             fileListItems.appendChild(li);
         });
-        
+
         btnSubmitUpload.disabled = false;
     };
 
@@ -443,13 +565,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const artist = fileData.artist || 'Unknown Artist';
             const album = fileData.album || 'Unknown Album';
             const file = fileData.fileObject;
-            
+
             const serverRule = /[^a-zA-Z0-9._-]/g;
             const safeArtist = artist.replace(serverRule, '_').trim() || "Unknown_Artist";
             const safeAlbum = album.replace(serverRule, '_').trim() || "Unknown_Album";
-            
+
             const path = `${safeArtist}/${safeAlbum}/${file.name}`;
-            
+
             formData.append('musicFiles', file, path);
         });
 
@@ -498,27 +620,27 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     btnSubmitUpload.disabled = true;
-    
+
     // --- 9. Socket.io Event Handlers ---
-    
+
     socket.on('connect', () => {
         statusLight.classList.add('connected');
         statusText.textContent = 'System Ready';
         statusTooltip.textContent = 'Connected to Server via WebSocket';
         socket.emit('getStatus');
         socket.emit('getOutputs');
-        
+
         socket.emit('getSystemInfo');
         setInterval(() => {
             socket.emit('getSystemInfo');
-        }, 5000); 
+        }, 5000);
     });
-    
+
     socket.on('disconnect', () => {
         statusLight.classList.remove('connected');
         statusText.textContent = 'Disconnected';
         statusTooltip.textContent = 'Lost connection to Server/MPD';
-        stopPlayerTimer(); 
+        stopPlayerTimer();
     });
 
     socket.on('error', (error) => {
@@ -537,10 +659,10 @@ document.addEventListener('DOMContentLoaded', () => {
         lastStatusElapsed = parseFloat(status.elapsed || 0);
         lastStatusDuration = parseFloat(status.duration || 0);
         lastKnownSong = currentSong; // Store for latency calculation
-        
+
         if (status.state === 'play') {
             btnPlayPause.classList.add('playing');
-            visualizer.classList.add('playing');
+            startVisualizer(); // Start canvas animation
             startPlayerTimer(); // <-- FIX: This starts the progress bar
 
             // Set format from currentSong
@@ -560,11 +682,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 techSamplerate.textContent = '-- kHz';
                 techBitdepth.textContent = '-- bit';
             }
-            
+
             // Update buffer and latency stats
             const bufferSize = status.buffer ? status.buffer.split(':')[0] : '...'; // Get buffer from status
             statBuffer.textContent = `Buffer: ${bufferSize}`;
-            
+
             let latencyMs = '--';
             if (status.audio) {
                 const sampleRate = parseInt(status.audio.split(':')[0]);
@@ -577,9 +699,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // Player is paused or stopped
             btnPlayPause.classList.remove('playing');
-            visualizer.classList.remove('playing');
+            stopVisualizer(); // Stop canvas animation
             stopPlayerTimer(); // <-- FIX: This stops the progress bar
-            
+
             // Clear all tech info
             techFormat.textContent = '--';
             techSamplerate.textContent = '-- kHz';
@@ -589,14 +711,14 @@ document.addEventListener('DOMContentLoaded', () => {
             statBuffer.textContent = `Buffer: --`;
             statLatency.textContent = `Latency: --ms`;
         }
-        
+
         if (!isSeeking) {
             seekSlider.value = lastStatusElapsed;
             seekSlider.max = lastStatusDuration;
             timeCurrent.textContent = formatTime(lastStatusElapsed);
             timeDuration.textContent = formatTime(lastStatusDuration);
         }
-        
+
         let playerState = 'Idle';
         if (status.state === 'play') {
             playerState = `Playing @ ${status.bitrate || '--'} kbps`;
@@ -611,17 +733,36 @@ document.addEventListener('DOMContentLoaded', () => {
             playerTitle.textContent = currentSong.title || path.basename(currentSong.file);
             playerArtist.textContent = currentSong.artist || 'Unknown Artist';
             playerAlbum.textContent = currentSong.album || 'Unknown Album';
-            
+
             const artPath = `/music/${currentSong.file.substring(0, currentSong.file.lastIndexOf('/'))}/cover.jpg`;
             if (albumArt.src.endsWith(artPath) === false) {
                 albumArt.src = artPath;
+                kioskArt.src = artPath; // Update Kiosk Art
             }
+
+            // Update Kiosk Text
+            kioskTitle.textContent = playerTitle.textContent;
+            kioskArtist.textContent = playerArtist.textContent;
+            kioskAlbum.textContent = playerAlbum.textContent;
+
         } else {
             // No song loaded
             playerTitle.textContent = 'No Track Playing';
             playerArtist.textContent = 'Unknown Artist';
             playerAlbum.textContent = 'Unknown Album';
-            albumArt.src = ''; 
+            albumArt.src = '';
+            kioskArt.src = '';
+            kioskTitle.textContent = 'No Track Playing';
+            kioskArtist.textContent = 'Unknown Artist';
+            kioskAlbum.textContent = 'Unknown Album';
+        }
+
+        // Update Kiosk Progress
+        if (lastStatusDuration > 0) {
+            const percent = (lastStatusElapsed / lastStatusDuration) * 100;
+            kioskProgressBar.style.width = `${percent}%`;
+        } else {
+            kioskProgressBar.style.width = '0%';
         }
     });
     // --- END OF FIXED FUNCTION ---
@@ -648,12 +789,12 @@ document.addEventListener('DOMContentLoaded', () => {
         currentLibraryView = view;
         libraryTitle.textContent = title;
         librarySearch.value = '';
-        
+
         libraryViewArtists.classList.add('hidden');
         libraryViewAlbums.classList.add('hidden');
         libraryViewTracks.classList.add('hidden');
         libraryAlbumInfo.classList.add('hidden');
-        
+
         if (view === 'artists') {
             libraryViewArtists.classList.remove('hidden');
             libraryBackBtn.classList.add('hidden');
@@ -663,13 +804,30 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (view === 'tracks') {
             libraryViewTracks.classList.remove('hidden');
             libraryBackBtn.classList.remove('hidden');
+        } else if (view === 'playlists') {
+            libraryViewPlaylists.classList.remove('hidden');
+            libraryBackBtn.classList.add('hidden');
+        } else if (view === 'radio') {
+            libraryViewRadio.classList.remove('hidden');
+            libraryBackBtn.classList.add('hidden');
+            renderRadioList();
+        } else if (view === 'tidal') {
+            document.getElementById('library-view-tidal').classList.remove('hidden');
+            libraryBackBtn.classList.add('hidden');
+            // Trigger browse
+            // socket.emit('browseService', 'tidal'); 
+        } else if (view === 'qobuz') {
+            document.getElementById('library-view-qobuz').classList.remove('hidden');
+            libraryBackBtn.classList.add('hidden');
+            // Trigger browse
+            // socket.emit('browseService', 'qobuz');
         }
     };
 
     librarySearch.addEventListener('input', () => {
         const filterText = librarySearch.value.toLowerCase();
         let itemsToFilter;
-        
+
         if (currentLibraryView === 'artists') {
             itemsToFilter = libraryViewArtists.querySelectorAll('.artist-item');
         } else if (currentLibraryView === 'albums') {
@@ -677,7 +835,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (currentLibraryView === 'tracks') {
             itemsToFilter = libraryViewTracks.querySelectorAll('.library-track');
         }
-        
+
         if (itemsToFilter) {
             itemsToFilter.forEach(item => {
                 const itemText = item.textContent.toLowerCase();
@@ -739,8 +897,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 1. Populate Album Info Box
         libraryAlbumTitle.textContent = album;
-        libraryAlbumArtist.textContent = currentArtist; 
-        
+        libraryAlbumArtist.textContent = currentArtist;
+
         if (metadata) {
             libraryAlbumYear.textContent = metadata.year || '';
             libraryAlbumDescription.textContent = metadata.description || 'No description available.';
@@ -750,14 +908,14 @@ document.addEventListener('DOMContentLoaded', () => {
             libraryAlbumYear.classList.add('hidden');
             libraryAlbumDescription.textContent = 'No online metadata found. Click "Get Online Info" to search.';
         }
-        
+
         // 2. Populate track list
         if (!songs || songs.length === 0) {
             libraryViewTracks.innerHTML = `<li class="library-track" style="cursor: default;">No songs found for ${album}.</li>`;
         } else {
             const artPath = `/music/${songs[0].file.substring(0, songs[0].file.lastIndexOf('/'))}/cover.jpg`;
             libraryAlbumArt.src = artPath;
-            
+
             songs.forEach(track => {
                 const li = document.createElement('li');
                 li.className = 'library-track';
@@ -780,7 +938,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 libraryViewTracks.appendChild(li);
             });
         }
-        
+
         libraryAlbumInfo.classList.remove('hidden');
         librarySpinner.classList.add('hidden');
     });
@@ -799,9 +957,208 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.emit('getSongs', { artist: currentArtist, album: currentAlbum });
     });
 
+    socket.on('queueList', (queue) => {
+        queueList.innerHTML = '';
+        if (!queue || queue.length === 0) {
+            queueList.innerHTML = '<li class="library-track" style="cursor: default;">Queue is empty.</li>';
+        } else {
+            queue.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'library-track';
+                // Highlight currently playing song? We need currentSong id.
+                // For now just list them.
+
+                const title = item.Title || path.basename(item.file);
+                const artist = item.Artist || 'Unknown Artist';
+
+                li.innerHTML = `
+                    <div class="track-info" style="grid-column: 1 / span 2;">
+                        <div class="track-title">${title}</div>
+                        <div class="track-artist">${artist}</div>
+                    </div>
+                    <span class="track-duration">${formatTime(item.Time)}</span>
+                    <button class="icon-btn remove-track" title="Remove">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
+                `;
+
+                li.querySelector('.remove-track').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    socket.emit('removeFromQueue', item.Id);
+                });
+
+                li.addEventListener('click', () => {
+                    // Play this specific song? MPD 'playid'
+                    // We need to add 'playid' support to server if we want to jump to track.
+                    // For now, let's just do nothing or maybe implement jump later.
+                });
+
+                queueList.appendChild(li);
+            });
+        }
+    });
+
+    socket.on('playlistsList', (playlists) => {
+        libraryViewPlaylists.innerHTML = '';
+        if (!playlists || playlists.length === 0) {
+            libraryViewPlaylists.innerHTML = '<span>No playlists found.</span>';
+        } else {
+            playlists.forEach(pl => {
+                const item = document.createElement('div');
+                item.className = 'album-item'; // Reuse album style
+                item.innerHTML = `
+                    <div style="width: 100%; aspect-ratio: 1/1; background: var(--surface-2); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M9 18V5l12-2v13M9 9l12-2M6 6H3c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-3H6V6z"/></svg>
+                    </div>
+                    <span>${pl.playlist}</span>
+                    <button class="icon-btn delete-playlist" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.5); color: #fff;">&times;</button>
+                `;
+                item.style.position = 'relative';
+
+                item.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('delete-playlist')) return;
+                    if (confirm(`Load playlist "${pl.playlist}"? This will replace the current queue.`)) {
+                        socket.emit('loadPlaylist', pl.playlist);
+                        showToast('Playlist loaded', 'success');
+                        closeModal(libraryModal);
+                    }
+                });
+
+                item.querySelector('.delete-playlist').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (confirm(`Delete playlist "${pl.playlist}"?`)) {
+                        socket.emit('deletePlaylist', pl.playlist);
+                    }
+                });
+
+                libraryViewPlaylists.appendChild(item);
+            });
+        }
+    });
+
+    // Radio Logic
+    // We'll use localStorage for now as requested in plan
+    const getRadioStations = () => {
+        const stored = localStorage.getItem('resonance_radio');
+        return stored ? JSON.parse(stored) : [];
+    };
+
+    const addRadioStation = (name, url) => {
+        const stations = getRadioStations();
+        stations.push({ name, url });
+        localStorage.setItem('resonance_radio', JSON.stringify(stations));
+        renderRadioList();
+    };
+
+    const removeRadioStation = (index) => {
+        const stations = getRadioStations();
+        stations.splice(index, 1);
+        localStorage.setItem('resonance_radio', JSON.stringify(stations));
+        renderRadioList();
+    };
+
+    const renderRadioList = () => {
+        radioList.innerHTML = '';
+        const stations = getRadioStations();
+        if (stations.length === 0) {
+            radioList.innerHTML = '<li class="library-track" style="cursor: default;">No stations added.</li>';
+        } else {
+            stations.forEach((station, index) => {
+                const li = document.createElement('li');
+                li.className = 'library-track';
+                li.innerHTML = `
+                    <div class="track-info" style="grid-column: 1 / span 2;">
+                        <div class="track-title">${station.name}</div>
+                        <div class="track-artist">${station.url}</div>
+                    </div>
+                    <button class="icon-btn remove-station" title="Remove">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
+                `;
+
+                li.querySelector('.remove-station').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    removeRadioStation(index);
+                });
+
+                li.addEventListener('click', () => {
+                    socket.emit('clearQueue');
+                    socket.emit('addToQueue', station.url);
+                    socket.emit('play');
+                    showToast(`Playing ${station.name}...`, 'info');
+                    closeModal(libraryModal);
+                });
+
+                radioList.appendChild(li);
+            });
+        }
+    };
+
+    // --- Services Logic ---
+
+    btnSaveTidal.addEventListener('click', () => {
+        const token = tidalToken.value;
+        const password = tidalPassword.value;
+        if (!token) return showToast('Token required', 'error');
+        socket.emit('saveService', { service: 'tidal', token, password });
+    });
+
+    btnSaveQobuz.addEventListener('click', () => {
+        const username = qobuzUsername.value;
+        const password = qobuzPassword.value;
+        const appid = qobuzAppid.value;
+        if (!username || !password) return showToast('Username/Password required', 'error');
+        socket.emit('saveService', { service: 'qobuz', username, password, appid });
+    });
+
+    socket.on('servicesList', (services) => {
+        if (services.tidal) {
+            tidalToken.value = services.tidal.token || '';
+            tidalPassword.value = services.tidal.password || '';
+        }
+        if (services.qobuz) {
+            qobuzUsername.value = services.qobuz.username || '';
+            qobuzPassword.value = services.qobuz.password || '';
+            qobuzAppid.value = services.qobuz.appid || '';
+        }
+    });
+
+    // Request services when settings open
+    btnOpenSettings.addEventListener('click', () => {
+        settingsModal.classList.remove('hidden');
+        socket.emit('getServices');
+        socket.emit('getOutputs');
+        socket.emit('getSystemInfo');
+    });
+
+    // Service Browsing (Placeholder for now, as we need MPD plugins active)
+    // Real implementation would involve 'lsinfo tidal://' etc.
+    // For this task, we'll simulate the browsing structure or just show a message if not connected.
+
+    const renderServiceList = (service, items) => {
+        const container = document.getElementById(`${service}-list`);
+        container.innerHTML = '';
+        if (!items || items.length === 0) {
+            container.innerHTML = '<span>No items found. Ensure plugin is configured.</span>';
+            return;
+        }
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'device-item';
+            div.innerHTML = `<span>${item.name || item.file}</span>`;
+            div.addEventListener('click', () => {
+                // If it's a directory, browse into it. If file, play it.
+                // This requires robust MPD browsing logic which is complex.
+                // For now, we'll just try to add to queue.
+                socket.emit('addToQueue', item.file);
+                showToast(`Added ${item.name || 'track'} to queue`, 'info');
+            });
+            container.appendChild(div);
+        });
+    };
 
     // --- Other Socket Handlers ---
-    
+
     socket.on('outputsList', (outputs) => {
         outputsList.innerHTML = '';
         if (!outputs || outputs.length === 0) {
@@ -821,12 +1178,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${isConnected ? 'Connected' : 'Available'}
                     </span>
                 `;
-                
+
                 item.addEventListener('click', () => {
                     showToast(`Switching to ${output.outputname}...`, 'info');
                     deviceName.textContent = output.outputname;
-                    isSwitchingOutput = true; 
-                    
+                    isSwitchingOutput = true;
+
                     socket.emit('switchOutput', {
                         outputId: output.outputid,
                         enabled: !isConnected
@@ -840,7 +1197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-        modalLoadState.outputs = true; 
+        modalLoadState.outputs = true;
         checkSettingsSpinner();
 
         if (isSwitchingOutput) {
@@ -854,11 +1211,72 @@ document.addEventListener('DOMContentLoaded', () => {
         sysKernel.textContent = info.kernel || '--';
         sysAudio.textContent = info.audioServer || '--';
         sysCpu.textContent = info.cpuLoad || '--';
-        
+
         // Add the '%' sign here, where it belongs.
         statCpu.textContent = `CPU: ${info.cpuLoad || '--'}%`;
-        
-        modalLoadState.systemInfo = true; 
-        checkSettingsSpinner(); 
+
+        modalLoadState.systemInfo = true;
+        checkSettingsSpinner();
     });
+    // --- 10. Visualizer Logic ---
+    let visualizerRunning = false;
+    let animationId = null;
+
+    const resizeCanvas = () => {
+        visualizerCanvas.width = visualizerCanvas.offsetWidth;
+        visualizerCanvas.height = visualizerCanvas.offsetHeight;
+    };
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    const startVisualizer = () => {
+        if (visualizerRunning) return;
+        visualizerRunning = true;
+        drawVisualizer();
+    };
+
+    const stopVisualizer = () => {
+        visualizerRunning = false;
+        if (animationId) cancelAnimationFrame(animationId);
+        ctx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+    };
+
+    const drawVisualizer = () => {
+        if (!visualizerRunning) return;
+
+        const width = visualizerCanvas.width;
+        const height = visualizerCanvas.height;
+        const barWidth = 6;
+        const gap = 4;
+        const barCount = Math.floor(width / (barWidth + gap));
+
+        ctx.clearRect(0, 0, width, height);
+
+        // Simulated Frequency Data
+        const time = Date.now() / 100;
+
+        for (let i = 0; i < barCount; i++) {
+            // Create a wave-like pattern
+            const x = i * (barWidth + gap);
+
+            // Simulating audio data with sine waves and noise
+            const noise = Math.random() * 0.2;
+            const wave = Math.sin(i * 0.2 + time) * 0.5 + 0.5;
+            const wave2 = Math.sin(i * 0.1 - time * 0.5) * 0.3 + 0.5;
+
+            let barHeight = (wave * wave2 + noise) * height * 0.8;
+            barHeight = Math.max(barHeight, 4); // Min height
+
+            // Gradient Color
+            const gradient = ctx.createLinearGradient(0, height - barHeight, 0, height);
+            gradient.addColorStop(0, '#e0b050');
+            gradient.addColorStop(1, '#2c2c2c');
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+        }
+
+        animationId = requestAnimationFrame(drawVisualizer);
+    };
 });
+

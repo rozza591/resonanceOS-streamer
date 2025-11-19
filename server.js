@@ -251,17 +251,17 @@ const sendStatus = async () => {
 const sendOutputs = async () => {
     try {
         const { stdout } = await execAsync('aplay -l');
-        
+
         const internalDeviceNames = [
-            'bcm2835_headphon', 
-            'vc4-hdmi',         
+            'bcm2835_headphon',
+            'vc4-hdmi',
             'bcm2835_hdmi',
             'HDA Intel HDMI'
         ];
 
         const internalCardNumbers = new Set();
-        const externalDeviceMap = {}; 
-        
+        const externalDeviceMap = {};
+
         for (const line of stdout.split('\n')) {
             const cardMatch = line.match(/^card (\d+): ([\w-]+) \[([^\]]+)\].*/);
             if (cardMatch) {
@@ -289,7 +289,7 @@ const sendOutputs = async () => {
                 const hwMatch = output.attribute.match(/hw:(\d+),/);
                 if (hwMatch) {
                     const cardNum = hwMatch[1];
-                    
+
                     if (internalCardNumbers.has(cardNum)) {
                         isInternal = true;
                     } else if (externalDeviceMap[cardNum]) {
@@ -305,7 +305,7 @@ const sendOutputs = async () => {
         }
 
         io.emit('outputsList', outputsToSend);
-    
+
     } catch (err) {
         console.error(`[MPD] Error getting outputs: ${err.message}`);
         try {
@@ -342,7 +342,7 @@ io.on('connection', (socket) => {
         sendQueue();
         sendPlaylists();
     }
-    
+
     const safeExecute = async (fn, eventName = 'unknown') => {
         try {
             await fn();
@@ -365,7 +365,7 @@ io.on('connection', (socket) => {
 
     // --- Library Browsing ---
     socket.on('getArtists', () => safeExecute(async () => {
-        const artistsStr = await sendMpdCommand('list', ['albumartist']); 
+        const artistsStr = await sendMpdCommand('list', ['albumartist']);
         const artists = mpd.parseList(artistsStr).map(item => item.albumartist).filter(Boolean).sort();
         socket.emit('artistList', artists);
     }, 'getArtists'));
@@ -377,12 +377,14 @@ io.on('connection', (socket) => {
         socket.emit('albumList', { artist: artistName, albums });
     }, 'getAlbums'));
 
+    socket.on('getPlaylists', () => safeExecute(sendPlaylists, 'getPlaylists'));
+
     // --- MODIFIED: 'getSongs' now also fetches from our DB ---
     socket.on('getSongs', ({ artist, album }) => safeExecute(async () => {
         if (!artist || !album) {
             throw new Error('Artist and album required');
         }
-        
+
         const songsStr = await sendMpdCommand('find', ['albumartist', artist, 'album', album]);
         const songs = mpd.parseList(songsStr);
 
@@ -411,7 +413,7 @@ io.on('connection', (socket) => {
 
     // --- Settings Controls ---
     socket.on('rescanLibrary', () => safeExecute(async () => { await sendMpdCommand('update'); socket.emit('message', { text: 'Library rescan started' }); }, 'rescanLibrary'));
-    socket.on('rebootPi', () => { 
+    socket.on('rebootPi', () => {
         console.log(`[System] Reboot requested by ${socket.id}`);
         exec('sudo /sbin/reboot', (err, stdout, stderr) => {
             if (err) {
@@ -420,32 +422,66 @@ io.on('connection', (socket) => {
             }
         });
     });
-    
-    socket.on('switchOutput', ({ outputId, enabled }) => safeExecute(async () => { 
+
+    socket.on('switchOutput', ({ outputId, enabled }) => safeExecute(async () => {
         if (typeof outputId === 'undefined') { throw new Error('Output ID required'); }
         const command = enabled ? 'enableoutput' : 'disableoutput';
-        await sendMpdCommand(command, [outputId]); 
-        await sendOutputs(); 
+        await sendMpdCommand(command, [outputId]);
+        await sendOutputs();
     }, 'switchOutput'));
 
     // --- Delete Operations ---
     socket.on('deleteSong', (songFile) => safeExecute(async () => { if (!songFile) throw new Error('Song file required'); const fullPath = validateMusicPath(songFile); console.log(`[FS] Deleting file: ${fullPath}`); await fs.unlink(fullPath); await sendMpdCommand('update'); socket.emit('message', { text: 'Song deleted successfully' }); }, 'deleteSong'));
     socket.on('deleteAlbum', ({ artist, album }) => safeExecute(async () => { if (!artist || !album) { throw new Error('Artist and album required'); } const songsStr = await sendMpdCommand('find', ['albumartist', artist, 'album', album]); const songs = mpd.parseList(songsStr); if (songs.length === 0) { throw new Error('Album not found'); } const albumRelPath = path.dirname(songs[0].file); const fullPath = validateMusicPath(albumRelPath); console.log(`[FS] Deleting directory: ${fullPath}`); await fs.rm(fullPath, { recursive: true, force: true }); await sendMpdCommand('update'); socket.emit('message', { text: 'Album deleted successfully' }); }, 'deleteAlbum'));
     socket.on('deleteArtist', (artist) => safeExecute(async () => { if (!artist) throw new Error('Artist name required'); const songsStr = await sendMpdCommand('find', ['albumartist', artist]); const songs = mpd.parseList(songsStr); if (songs.length === 0) { throw new Error('Artist not found'); } const artistRelPath = path.dirname(path.dirname(songs[0].file)); const fullPath = validateMusicPath(artistRelPath); console.log(`[FS] Deleting directory: ${fullPath}`); await fs.rm(fullPath, { recursive: true, force: true }); await sendMpdCommand('update'); socket.emit('message', { text: 'Artist deleted successfully' }); }, 'deleteArtist'));
-    
+
     // --- MODIFIED: 'getSystemInfo' handler ---
     socket.on('getSystemInfo', () => safeExecute(async () => {
         const osVersion = `ResonanceOS 1.0`;
         const kernel = os.release();
         const cpuLoad = (os.loadavg()[0] * 100 / os.cpus().length).toFixed(0); // <-- FIX: Removed '%'
-        const audioServer = 'Pipewire 1.0.3'; 
+        const audioServer = 'Pipewire 1.0.3';
         socket.emit('systemInfo', { osVersion, kernel, audioServer, cpuLoad });
     }, 'getSystemInfo'));
+
+    // --- Services Handlers ---
+    socket.on('getServices', () => safeExecute(async () => {
+        db.all("SELECT * FROM services", [], (err, rows) => {
+            if (err) throw err;
+            const services = {};
+            rows.forEach(row => {
+                services[row.service] = row;
+            });
+            socket.emit('servicesList', services);
+        });
+    }, 'getServices'));
+
+    socket.on('saveService', (data) => safeExecute(async () => {
+        const { service, username, password, token, appid } = data;
+        if (!service) throw new Error('Service name required');
+
+        await new Promise((resolve, reject) => {
+            db.run(
+                `INSERT OR REPLACE INTO services (service, username, password, token, appid) VALUES (?, ?, ?, ?, ?)`,
+                [service, username, password, token, appid],
+                (err) => {
+                    if (err) return reject(err);
+                    resolve();
+                }
+            );
+        });
+
+        console.log(`[Services] Saved credentials for ${service}`);
+        socket.emit('message', { text: `${service} settings saved.` });
+
+        // Ideally, we would restart MPD or reload config here if we were writing to mpd.conf
+        // For now, we just store them.
+    }, 'saveService'));
 
     // --- ADDED: New Metadata Fetch Handler ---
     socket.on('fetchMetadata', ({ artist, album }) => safeExecute(async () => {
         if (!artist || !album) throw new Error('Artist and Album required to fetch metadata');
-        
+
         // --- THIS IS THE FIX ---
         // 1. Clean the album title, removing parentheses/brackets
         const cleanAlbum = album.replace(/ \(.*\)| \[.*\]/g, '').trim();
@@ -458,7 +494,7 @@ io.on('connection', (socket) => {
             console.error(`[Metadata] Album not found in MPD: ${artist} - ${album}`);
             throw new Error('Album not found in MPD');
         }
-        
+
         const albumRelPath = path.dirname(songs[0].file);
         const albumFullPath = validateMusicPath(albumRelPath);
 
@@ -466,7 +502,7 @@ io.on('connection', (socket) => {
         // 2. Use the cleanAlbum name in the API URL
         const url = `https://www.theaudiodb.com/api/v1/json/2/searchalbum.php?s=${encodeURIComponent(artist)}&a=${encodeURIComponent(cleanAlbum)}`;
         // --- END OF FIX ---
-        
+
         const response = await axios.get(url, { timeout: 8000 });
         const data = response.data.album ? response.data.album[0] : null;
 
@@ -517,7 +553,7 @@ io.on('connection', (socket) => {
             );
         });
 
-        socket.emit('metadataFetched'); 
+        socket.emit('metadataFetched');
     }, 'fetchMetadata'));
 
     socket.on('disconnect', () => {
@@ -563,24 +599,37 @@ const init = async () => {
                     PRIMARY KEY (artist, album)
                 )
             `, (err) => {
-                if (err) {
-                    console.error(`[DB] Error creating table: ${err.message}`);
-                    return reject(err);
-                }
-                console.log('[DB] Table "albums" is ready.');
-                resolve();
+                if (err) return reject(err);
+
+                // Create Services Table
+                db.run(`
+                    CREATE TABLE IF NOT EXISTS services (
+                        service TEXT PRIMARY KEY,
+                        username TEXT,
+                        password TEXT,
+                        token TEXT,
+                        appid TEXT
+                    )
+                `, (err) => {
+                    if (err) {
+                        console.error(`[DB] Error creating services table: ${err.message}`);
+                        return reject(err);
+                    }
+                    console.log('[DB] Tables "albums" and "services" are ready.');
+                    resolve();
+                });
             });
         });
 
         // 2. Connect to MPD
         await connectMPD();
-        
+
         // 3. Start Web Server
         server.listen(CONFIG.PORT, '0.0.0.0', () => {
             console.log(`[Server] Listening on all interfaces, port ${CONFIG.PORT}`);
             console.log(`[Server] Music directory: ${CONFIG.MUSIC_DIR}`);
             console.log(`[Server] Environment: ${process.env.NODE_ENV || 'development'}`);
-        });  
+        });
 
         server.on('error', (err) => {
             if (err.code === 'EADDRINUSE') {
