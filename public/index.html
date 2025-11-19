@@ -253,23 +253,21 @@
                     <h3>USB Audio Output</h3>
                     <div id="outputs-list" class="device-list"></div>
                 </section>
+
                 <div class="settings-section">
                     <h3>Services</h3>
                     <div class="setting-item">
                         <label>Tidal</label>
                         <div class="service-inputs">
-                            <input type="text" id="tidal-token" placeholder="Token" class="input-field">
-                            <input type="password" id="tidal-password" placeholder="Password" class="input-field">
-                            <button id="btn-save-tidal" class="btn-primary btn-sm">Save</button>
+                            <div id="tidal-status" class="device-status available">Not Connected</div>
+                            <button id="btn-auth-tidal" class="btn btn-primary btn-sm">Login to Tidal</button>
                         </div>
                     </div>
                     <div class="setting-item">
                         <label>Qobuz</label>
                         <div class="service-inputs">
-                            <input type="text" id="qobuz-username" placeholder="Username" class="input-field">
-                            <input type="password" id="qobuz-password" placeholder="Password" class="input-field">
-                            <input type="text" id="qobuz-appid" placeholder="App ID" class="input-field">
-                            <button id="btn-save-qobuz" class="btn-primary btn-sm">Save</button>
+                            <div id="qobuz-status" class="device-status available">Not Connected</div>
+                            <button id="btn-auth-qobuz" class="btn btn-primary btn-sm">Login to Qobuz</button>
                         </div>
                     </div>
                 </div>

@@ -43,14 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const libraryBackBtn = document.getElementById('library-back-btn');
     const libraryTitle = document.getElementById('library-title');
     const librarySearch = document.getElementById('library-search');
-    // Service Selectors
-    const tidalToken = document.getElementById('tidal-token');
-    const tidalPassword = document.getElementById('tidal-password');
-    const btnSaveTidal = document.getElementById('btn-save-tidal');
-    const qobuzUsername = document.getElementById('qobuz-username');
-    const qobuzPassword = document.getElementById('qobuz-password');
-    const qobuzAppid = document.getElementById('qobuz-appid');
-    const btnSaveQobuz = document.getElementById('btn-save-qobuz');
+    // Service Selectors (OLD ONES REMOVED, NEW BUTTONS ADDED)
 
     // Library Views
     const libraryViewArtists = document.getElementById('library-view-artists');
@@ -273,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
         openModal(settingsModal);
         socket.emit('getSystemInfo');
         socket.emit('getOutputs');
+        socket.emit('getServices'); // Also get services on open
     });
     btnCloseSettings.addEventListener('click', () => closeModal(settingsModal));
 
@@ -1093,68 +1087,70 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Services Logic ---
+    // --- Services Logic (NEW) ---
+    const btnAuthTidal = document.getElementById('btn-auth-tidal');
+    const btnAuthQobuz = document.getElementById('btn-auth-qobuz');
+    const tidalStatus = document.getElementById('tidal-status');
+    const qobuzStatus = document.getElementById('qobuz-status');
 
-    btnSaveTidal.addEventListener('click', () => {
-        const token = tidalToken.value;
-        const password = tidalPassword.value;
-        if (!token) return showToast('Token required', 'error');
-        socket.emit('saveService', { service: 'tidal', token, password });
-    });
-
-    btnSaveQobuz.addEventListener('click', () => {
-        const username = qobuzUsername.value;
-        const password = qobuzPassword.value;
-        const appid = qobuzAppid.value;
-        if (!username || !password) return showToast('Username/Password required', 'error');
-        socket.emit('saveService', { service: 'qobuz', username, password, appid });
-    });
-
-    socket.on('servicesList', (services) => {
-        if (services.tidal) {
-            tidalToken.value = services.tidal.token || '';
-            tidalPassword.value = services.tidal.password || '';
-        }
-        if (services.qobuz) {
-            qobuzUsername.value = services.qobuz.username || '';
-            qobuzPassword.value = services.qobuz.password || '';
-            qobuzAppid.value = services.qobuz.appid || '';
-        }
-    });
-
-    // Request services when settings open
-    btnOpenSettings.addEventListener('click', () => {
-        settingsModal.classList.remove('hidden');
-        socket.emit('getServices');
-        socket.emit('getOutputs');
-        socket.emit('getSystemInfo');
-    });
-
-    // Service Browsing (Placeholder for now, as we need MPD plugins active)
-    // Real implementation would involve 'lsinfo tidal://' etc.
-    // For this task, we'll simulate the browsing structure or just show a message if not connected.
-
-    const renderServiceList = (service, items) => {
-        const container = document.getElementById(`${service}-list`);
-        container.innerHTML = '';
-        if (!items || items.length === 0) {
-            container.innerHTML = '<span>No items found. Ensure plugin is configured.</span>';
-            return;
-        }
-        items.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'device-item';
-            div.innerHTML = `<span>${item.name || item.file}</span>`;
-            div.addEventListener('click', () => {
-                // If it's a directory, browse into it. If file, play it.
-                // This requires robust MPD browsing logic which is complex.
-                // For now, we'll just try to add to queue.
-                socket.emit('addToQueue', item.file);
-                showToast(`Added ${item.name || 'track'} to queue`, 'info');
-            });
-            container.appendChild(div);
+    // Handle Button Clicks - Redirect to Server Auth Routes
+    if (btnAuthTidal) {
+        btnAuthTidal.addEventListener('click', () => {
+            window.location.href = '/auth/tidal';
         });
-    };
+    }
+
+    if (btnAuthQobuz) {
+        btnAuthQobuz.addEventListener('click', () => {
+            window.location.href = '/auth/qobuz';
+        });
+    }
+
+    // Update UI based on stored tokens
+    socket.on('servicesList', (services) => {
+        // Tidal Status
+        if (services.tidal && services.tidal.token) {
+            tidalStatus.textContent = 'Connected';
+            tidalStatus.classList.remove('available');
+            tidalStatus.classList.add('connected');
+            btnAuthTidal.textContent = 'Reconnect';
+        } else {
+            tidalStatus.textContent = 'Not Connected';
+            tidalStatus.classList.remove('connected');
+            tidalStatus.classList.add('available');
+        }
+
+        // Qobuz Status
+        if (services.qobuz && services.qobuz.token) {
+            qobuzStatus.textContent = 'Connected';
+            qobuzStatus.classList.remove('available');
+            qobuzStatus.classList.add('connected');
+            btnAuthQobuz.textContent = 'Reconnect';
+        } else {
+            qobuzStatus.textContent = 'Not Connected';
+            qobuzStatus.classList.remove('connected');
+            qobuzStatus.classList.add('available');
+        }
+    });
+
+    // Check for success params in URL after redirect back
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('status')) {
+        const status = urlParams.get('status');
+        if (status === 'tidal_connected') showToast('Tidal connected successfully!', 'success');
+        if (status === 'qobuz_connected') showToast('Qobuz connected successfully!', 'success');
+
+        // Clean URL
+        window.history.replaceState({}, document.title, "/");
+
+        // Refresh settings to show new status
+        socket.emit('getServices');
+    }
+    if (urlParams.has('error')) {
+        showToast('Service login failed.', 'error');
+        window.history.replaceState({}, document.title, "/");
+    }
+
 
     // --- Other Socket Handlers ---
 
@@ -1278,4 +1274,3 @@ document.addEventListener('DOMContentLoaded', () => {
         animationId = requestAnimationFrame(drawVisualizer);
     };
 });
-

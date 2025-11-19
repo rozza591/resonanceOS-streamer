@@ -333,6 +333,95 @@ function validateMusicPath(relativePath) {
     return fullPath;
 }
 
+// --- 11b. OAuth Routes for Tidal & Qobuz ---
+
+// Helper to get the base URL
+const getBaseUrl = (req) => `${req.protocol}://${req.get('host')}`;
+
+// 1. TIDAL Auth Routes
+app.get('/auth/tidal', (req, res) => {
+    const clientId = process.env.TIDAL_CLIENT_ID;
+    const redirectUri = `${getBaseUrl(req)}/auth/tidal/callback`;
+    // Standard OAuth 2.0 flow URL (Check Tidal documentation for exact scope/URL)
+    const authUrl = `https://login.tidal.com/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=r_usr+w_usr`;
+    res.redirect(authUrl);
+});
+
+app.get('/auth/tidal/callback', async (req, res) => {
+    const { code } = req.query;
+    if (!code) return res.redirect('/?error=auth_failed');
+
+    try {
+        // Exchange code for token
+        const tokenResponse = await axios.post('https://auth.tidal.com/v1/oauth2/token', new URLSearchParams({
+            grant_type: 'authorization_code',
+            code: code,
+            client_id: process.env.TIDAL_CLIENT_ID,
+            client_secret: process.env.TIDAL_CLIENT_SECRET,
+            redirect_uri: `${getBaseUrl(req)}/auth/tidal/callback`
+        }));
+
+        const { access_token, refresh_token, expires_in } = tokenResponse.data;
+
+        // Save to DB
+        await new Promise((resolve, reject) => {
+            db.run(
+                `INSERT OR REPLACE INTO services (service, token, password) VALUES (?, ?, ?)`,
+                ['tidal', access_token, refresh_token],
+                (err) => (err ? reject(err) : resolve())
+            );
+        });
+
+        console.log('[Auth] Tidal login successful');
+        res.redirect('/?status=tidal_connected');
+    } catch (error) {
+        console.error('[Auth] Tidal token exchange failed:', error.response?.data || error.message);
+        res.redirect('/?error=tidal_failed');
+    }
+});
+
+// 2. QOBUZ Auth Routes
+app.get('/auth/qobuz', (req, res) => {
+    const appId = process.env.QOBUZ_APP_ID;
+    // Qobuz doesn't always have a standard public OAuth web flow documented publicly.
+    // Assuming standard flow or bundle ID flow here:
+    const redirectUri = `${getBaseUrl(req)}/auth/qobuz/callback`;
+    // Note: You may need to adjust this URL based on your specific Qobuz API partnership details
+    const authUrl = `https://www.qobuz.com/oauth/authorize?response_type=code&app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    res.redirect(authUrl);
+});
+
+app.get('/auth/qobuz/callback', async (req, res) => {
+    const { code } = req.query;
+    if (!code) return res.redirect('/?error=auth_failed');
+
+    try {
+        const tokenResponse = await axios.post('https://www.qobuz.com/api.json/0.2/user/login', {
+            app_id: process.env.QOBUZ_APP_ID,
+            app_secret: process.env.QOBUZ_APP_SECRET,
+            code: code
+            // Note: Qobuz API varies. Sometimes it just wants username/password via API, 
+            // but for "button press" redirect, you need their OAuth implementation.
+        });
+
+        const token = tokenResponse.data.user_auth_token;
+
+        await new Promise((resolve, reject) => {
+            db.run(
+                `INSERT OR REPLACE INTO services (service, token) VALUES (?, ?)`,
+                ['qobuz', token],
+                (err) => (err ? reject(err) : resolve())
+            );
+        });
+
+        console.log('[Auth] Qobuz login successful');
+        res.redirect('/?status=qobuz_connected');
+    } catch (error) {
+        console.error('[Auth] Qobuz login failed:', error.message);
+        res.redirect('/?error=qobuz_failed');
+    }
+});
+
 // --- 12. WebSocket Logic ---
 io.on('connection', (socket) => {
     console.log(`[Socket] User connected: ${socket.id}`);
