@@ -543,14 +543,26 @@ io.on('connection', (socket) => {
                             console.log(`[Tidal] Parsing DASH manifest for quality: ${quality}`);
                             const dashXml = Buffer.from(res.data.manifest, 'base64').toString('utf-8');
 
-                            // Simple regex to extract BaseURL (avoids needing an XML parser)
-                            const baseUrlMatch = dashXml.match(/<BaseURL>([^<]+)<\/BaseURL>/);
+                            // DEBUG: Log the first 500 chars of the manifest to see structure
+                            console.log(`[Tidal] DASH XML Preview:`, dashXml.substring(0, 500));
+
+                            // Try multiple patterns to extract URL
+                            let baseUrlMatch = dashXml.match(/<BaseURL>([^<]+)<\/BaseURL>/);
+                            if (!baseUrlMatch) {
+                                // Try CDATA format
+                                baseUrlMatch = dashXml.match(/<BaseURL><!\[CDATA\[([^\]]+)\]\]><\/BaseURL>/);
+                            }
+                            if (!baseUrlMatch) {
+                                // Try looking for any http/https URL in the manifest
+                                baseUrlMatch = dashXml.match(/https?:\/\/[^\s<>"]+\.(?:mp4|m4a|flac)/);
+                            }
+
                             if (baseUrlMatch && baseUrlMatch[1]) {
                                 resolvedUrl = baseUrlMatch[1];
                                 console.log(`[Tidal] Resolved DASH URL with quality: ${quality}`);
                                 break;
                             } else {
-                                console.warn(`[Tidal] DASH manifest has no BaseURL`);
+                                console.warn(`[Tidal] DASH manifest has no extractable URL`);
                             }
                         }
                     } catch (e) {
