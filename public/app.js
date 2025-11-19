@@ -77,11 +77,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsSpinner = document.getElementById('settings-spinner');
     const themeSelect = document.getElementById('theme-select');
 
-    // Tidal Login Elements
-    const btnTidalLogin = document.getElementById('btn-tidal-login');
-    const btnTidalLogout = document.getElementById('btn-tidal-logout');
-    const tidalUsername = document.getElementById('tidal-username');
-    const tidalPassword = document.getElementById('tidal-password');
+    // Tidal OAuth Button
+    const btnTidalOAuth = document.getElementById('btn-tidal-oauth');
 
     // Manual Auth Elements
     const tidalLoginContainer = document.getElementById('tidal-login-container');
@@ -232,37 +229,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (btnTidalLogin) {
-        btnTidalLogin.addEventListener('click', async () => {
-            const username = tidalUsername.value.trim();
-            const password = tidalPassword.value.trim();
-            if (!username || !password) {
-                alert('Please enter both username and password.');
-                return;
-            }
-            btnTidalLogin.disabled = true;
-            btnTidalLogin.textContent = 'Logging in...';
-            try {
-                const res = await fetch('/auth/tidal/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    showToast('Tidal Login Successful!', 'success');
-                    tidalUsername.value = '';
-                    tidalPassword.value = '';
-                    socket.emit('getServices');
-                } else {
-                    alert(`Error: ${data.error}`);
-                }
-            } catch (err) {
-                alert('Network error during login.');
-            } finally {
-                btnTidalLogin.disabled = false;
-                btnTidalLogin.textContent = 'Log In';
-            }
+    // OAuth Login Handler
+    if (btnTidalOAuth) {
+        btnTidalOAuth.addEventListener('click', () => {
+            // Redirect to OAuth endpoint
+            window.location.href = '/auth/tidal';
         });
     }
 
