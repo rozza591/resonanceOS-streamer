@@ -132,9 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSource = 'local';
     let searchTimeout;
 
-    // >>> START OF EDIT: Navigation Stack for Tidal
     let tidalHistory = [];
-    // <<< END OF EDIT
 
     // Path utility function
     const path = {
@@ -356,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // >>> START OF EDIT: Enhanced Back Button Logic for Tidal History
+    // Enhanced Back Button Logic for Tidal History
     if (libraryBackBtn) {
         libraryBackBtn.addEventListener('click', () => {
             // Handle Tidal History
@@ -366,8 +364,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const previousView = tidalHistory[tidalHistory.length - 1];
 
                 if (previousView) {
-                    // Render previous state
-                    renderTidalResults(previousView);
+                    // >>> START OF EDIT: Fixed history data access
+                    renderTidalResults(previousView.data);
+                    // <<< END OF EDIT
                     if (librarySearch) librarySearch.value = previousView.query || '';
                 } else {
                     // Back to initial search state
@@ -391,7 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    // <<< END OF EDIT
 
     const sourceBtns = document.querySelectorAll('.source-btn');
     sourceBtns.forEach(btn => {
@@ -596,7 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (view === 'playlists' && libraryViewPlaylists) libraryViewPlaylists.classList.remove('hidden');
     };
 
-    // >>> START OF EDIT: Fetch Albums for a Tidal Artist
+    // Fetch Albums for a Tidal Artist
     const fetchTidalArtistAlbums = async (artistId, artistName) => {
         if (!tidalViewSearch || !librarySpinner) return;
 
@@ -625,6 +623,47 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             console.error('Tidal Albums Error:', e);
             showToast('Failed to load albums', 'error');
+        } finally {
+            librarySpinner.classList.add('hidden');
+        }
+    };
+
+    // >>> START OF EDIT: Fetch Tracks for a Tidal Album
+    const fetchTidalAlbumTracks = async (albumId, albumTitle, albumCover) => {
+        if (!tidalViewSearch || !librarySpinner) return;
+
+        librarySpinner.classList.remove('hidden');
+        tidalViewSearch.innerHTML = '';
+
+        try {
+            const res = await fetch(`/api/tidal/albums/${albumId}/tracks`);
+            if (!res.ok) throw new Error(`Status ${res.status}`);
+            const data = await res.json();
+
+            // Patch album metadata into tracks since it might be missing in this endpoint
+            const tracks = data.items.map(track => {
+                const patched = { ...track };
+                if (!patched.album) patched.album = {};
+                if (!patched.album.cover && albumCover) patched.album.cover = albumCover;
+                if (!patched.album.title && albumTitle) patched.album.title = albumTitle;
+                return patched;
+            });
+
+            const result = {
+                tracks: { items: tracks }
+            };
+
+            // Push to history
+            tidalHistory.push({ type: 'album_tracks', albumId, data: result });
+
+            if (librarySearch) librarySearch.value = `${albumTitle}`;
+            if (libraryBackBtn) libraryBackBtn.classList.remove('hidden');
+
+            renderTidalResults(result);
+
+        } catch (e) {
+            console.error('Tidal Album Tracks Error:', e);
+            showToast('Failed to load tracks', 'error');
         } finally {
             librarySpinner.classList.add('hidden');
         }
@@ -669,11 +708,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <img src="${img}" onerror="this.style.display='none';this.parentElement.style.backgroundColor='#333'">
                     <span>${artist?.name || 'Unknown'}</span>
                 `;
-                // >>> START OF EDIT: Click Handler
                 div.addEventListener('click', () => {
                     fetchTidalArtistAlbums(artist.id, artist.name);
                 });
-                // <<< END OF EDIT
                 tidalViewSearch.appendChild(div);
             });
         }
@@ -688,6 +725,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <img src="${img}" onerror="this.style.display='none';this.parentElement.style.backgroundColor='#333'">
                     <span>${album?.title || 'Unknown'}</span>
                 `;
+                // >>> START OF EDIT: Click Handler for Album Tracks
+                div.addEventListener('click', () => {
+                    fetchTidalAlbumTracks(album.id, album.title, album.cover);
+                });
+                // <<< END OF EDIT
                 tidalViewSearch.appendChild(div);
             });
         }

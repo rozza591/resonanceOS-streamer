@@ -322,7 +322,6 @@ app.get('/api/tidal/search', async (req, res) => {
     }
 });
 
-// >>> START OF EDIT: New Route for Artist Albums
 app.get('/api/tidal/artists/:id/albums', async (req, res) => {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: 'Artist ID required' });
@@ -343,6 +342,30 @@ app.get('/api/tidal/artists/:id/albums', async (req, res) => {
     } catch (error) {
         console.error('[Tidal] Artist albums failed:', error.message);
         res.status(500).json({ error: 'Failed to fetch albums' });
+    }
+});
+
+// >>> START OF EDIT: New Route for Album Tracks
+app.get('/api/tidal/albums/:id/tracks', async (req, res) => {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'Album ID required' });
+
+    try {
+        const creds = await getTidalCredentials();
+        console.log(`[Tidal] Fetching tracks for album: ${id}`);
+
+        const response = await axios.get(`https://api.tidal.com/v1/albums/${id}/tracks`, {
+            params: {
+                limit: 50,
+                countryCode: creds.countryCode
+            },
+            headers: getWebHeaders(creds)
+        });
+
+        res.json(response.data);
+    } catch (error) {
+        console.error('[Tidal] Album tracks failed:', error.message);
+        res.status(500).json({ error: 'Failed to fetch tracks' });
     }
 });
 // <<< END OF EDIT
