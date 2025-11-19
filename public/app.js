@@ -672,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Read from status.audio (the reliable source)
-            if (status.audio) {
+            if (status.audio && typeof status.audio === 'string') {
                 const [sampleRate, bitDepth, channels] = status.audio.split(':');
                 techSamplerate.textContent = `${(parseInt(sampleRate) / 1000).toFixed(0)}kHz`;
                 techBitdepth.textContent = `${bitDepth}-bit`;
@@ -683,11 +683,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Update buffer and latency stats
-            const bufferSize = status.buffer ? status.buffer.split(':')[0] : '...'; // Get buffer from status
+            const bufferSize = status.buffer && typeof status.buffer === 'string' ? status.buffer.split(':')[0] : '...'; // Get buffer from status
             statBuffer.textContent = `Buffer: ${bufferSize}`;
 
             let latencyMs = '--';
-            if (status.audio) {
+            if (status.audio && typeof status.audio === 'string') {
                 const sampleRate = parseInt(status.audio.split(':')[0]);
                 if (!isNaN(sampleRate) && sampleRate > 0) {
                     latencyMs = ((parseInt(bufferSize) / sampleRate) * 1000).toFixed(1);
