@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tidalUsername = document.getElementById('tidal-username');
     const tidalPassword = document.getElementById('tidal-password');
 
-    // >>> START OF EDIT: Fixed selector IDs for Manual Auth & Access Token
+    // Manual Auth Elements
     const tidalLoginContainer = document.getElementById('tidal-login-container');
     const tidalConnectedInfo = document.getElementById('tidal-connected-info');
 
@@ -91,13 +91,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const tidalSessionIdInput = document.getElementById('tidal-session-id');
     const tidalUserIdInput = document.getElementById('tidal-user-id');
     const tidalCountryCodeInput = document.getElementById('tidal-country-code');
-    // New Access Token Input
     const tidalAccessTokenInput = document.getElementById('tidal-access-token');
 
     const authTabs = document.querySelectorAll('.auth-tab');
     const authAutoForm = document.getElementById('auth-auto');
     const authManualForm = document.getElementById('auth-manual');
-    // <<< END OF EDIT
 
     // Reboot Confirm
     const btnCloseRebootConfirm = document.getElementById('btn-close-reboot-confirm');
@@ -208,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 5. Event Listeners ---
 
-    // >>> START OF EDIT: Added Auth Tab Logic
+    // Auth Tab Logic
     if (authTabs) {
         authTabs.forEach(tab => {
             tab.addEventListener('click', () => {
@@ -225,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-    // <<< END OF EDIT
 
     // Tidal Login Handler (Auto)
     if (btnTidalLogin) {
@@ -267,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // >>> START OF EDIT: Manual Tidal Login Handler (Bearer Token + Legacy)
+    // Manual Tidal Login Handler
     if (btnTidalManual) {
         btnTidalManual.addEventListener('click', async () => {
             const accessToken = tidalAccessTokenInput ? tidalAccessTokenInput.value.trim() : '';
@@ -309,7 +306,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    // <<< END OF EDIT
 
     if (btnTidalLogout) {
         btnTidalLogout.addEventListener('click', () => {
@@ -444,6 +440,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+
+        // >>> START OF EDIT: Added Keydown listener for "Enter"
+        librarySearch.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const query = librarySearch.value.trim();
+                if (currentSource === 'tidal' && query.length > 0) {
+                    clearTimeout(searchTimeout);
+                    fetchTidalSearch(query);
+                }
+            }
+        });
+        // <<< END OF EDIT
     }
 
     // Player Events
@@ -589,10 +597,13 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (view === 'playlists' && libraryViewPlaylists) libraryViewPlaylists.classList.remove('hidden');
     };
 
+    // >>> START OF EDIT: Relaxed check for librarySpinner
     const fetchTidalSearch = async (query) => {
-        if (!librarySpinner || !tidalViewSearch) return;
-        librarySpinner.classList.remove('hidden');
+        if (!tidalViewSearch) return; // Removed librarySpinner from required check
+
+        if (librarySpinner) librarySpinner.classList.remove('hidden');
         tidalViewSearch.innerHTML = '';
+
         try {
             const res = await fetch(`/api/tidal/search?query=${encodeURIComponent(query)}`);
             const data = await res.json();
@@ -600,9 +611,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             showToast('Tidal search failed', 'error');
         } finally {
-            librarySpinner.classList.add('hidden');
+            if (librarySpinner) librarySpinner.classList.add('hidden');
         }
     };
+    // <<< END OF EDIT
 
     const renderTidalResults = (data) => {
         if (!tidalViewSearch) return;
@@ -820,7 +832,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('servicesList', (services) => {
-        // >>> START OF EDIT: Fixed container selection
         if (services.tidal && services.tidal.connected) {
             if (tidalLoginContainer) tidalLoginContainer.classList.add('hidden');
             if (tidalConnectedInfo) tidalConnectedInfo.classList.remove('hidden');
@@ -828,7 +839,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tidalLoginContainer) tidalLoginContainer.classList.remove('hidden');
             if (tidalConnectedInfo) tidalConnectedInfo.classList.add('hidden');
         }
-        // <<< END OF EDIT
     });
 
     socket.on('outputsList', (outputs) => {
