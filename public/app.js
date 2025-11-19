@@ -82,8 +82,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnTidalLogout = document.getElementById('btn-tidal-logout');
     const tidalUsername = document.getElementById('tidal-username');
     const tidalPassword = document.getElementById('tidal-password');
-    const tidalLoginForm = document.getElementById('tidal-login-form');
+    // >>> START OF EDIT: Fixed selector ID and added manual auth elements
+    const tidalLoginContainer = document.getElementById('tidal-login-container'); // Fixed ID from tidal-login-form
     const tidalConnectedInfo = document.getElementById('tidal-connected-info');
+
+    // Manual Auth Elements
+    const btnTidalManual = document.getElementById('btn-tidal-manual');
+    const tidalSessionIdInput = document.getElementById('tidal-session-id');
+    const tidalUserIdInput = document.getElementById('tidal-user-id');
+    const tidalCountryCodeInput = document.getElementById('tidal-country-code');
+    const authTabs = document.querySelectorAll('.auth-tab');
+    const authAutoForm = document.getElementById('auth-auto');
+    const authManualForm = document.getElementById('auth-manual');
+    // <<< END OF EDIT
 
     // Reboot Confirm
     const btnCloseRebootConfirm = document.getElementById('btn-close-reboot-confirm');
@@ -194,7 +205,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 5. Event Listeners ---
 
-    // Tidal Login Handler
+    // >>> START OF EDIT: Added Auth Tab switching logic
+    if (authTabs) {
+        authTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                authTabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                if (tab.dataset.target === 'auto') {
+                    authAutoForm.classList.remove('hidden');
+                    authManualForm.classList.add('hidden');
+                } else {
+                    authAutoForm.classList.add('hidden');
+                    authManualForm.classList.remove('hidden');
+                }
+            });
+        });
+    }
+    // <<< END OF EDIT
+
+    // Tidal Login Handler (Auto)
     if (btnTidalLogin) {
         btnTidalLogin.addEventListener('click', async () => {
             const username = tidalUsername.value.trim();
@@ -233,6 +263,48 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // >>> START OF EDIT: Added Manual Tidal Login Handler
+    if (btnTidalManual) {
+        btnTidalManual.addEventListener('click', async () => {
+            const sessionId = tidalSessionIdInput.value.trim();
+            const userId = tidalUserIdInput.value.trim();
+            const countryCode = tidalCountryCodeInput.value.trim();
+
+            if (!sessionId || !userId) {
+                alert('Session ID and User ID are required.');
+                return;
+            }
+
+            btnTidalManual.disabled = true;
+            btnTidalManual.textContent = 'Saving...';
+
+            try {
+                const res = await fetch('/auth/tidal/session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId, userId, countryCode })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    showToast('Manual Session Saved!', 'success');
+                    tidalSessionIdInput.value = '';
+                    tidalUserIdInput.value = '';
+                    socket.emit('getServices');
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+            } catch (err) {
+                alert('Network error during session save.');
+            } finally {
+                btnTidalManual.disabled = false;
+                btnTidalManual.textContent = 'Save Session';
+            }
+        });
+    }
+    // <<< END OF EDIT
 
     if (btnTidalLogout) {
         btnTidalLogout.addEventListener('click', () => {
@@ -743,13 +815,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('servicesList', (services) => {
+        // >>> START OF EDIT: Fixed selector to use container and updated logic
         if (services.tidal && services.tidal.connected) {
-            if (tidalLoginForm) tidalLoginForm.classList.add('hidden');
+            if (tidalLoginContainer) tidalLoginContainer.classList.add('hidden');
             if (tidalConnectedInfo) tidalConnectedInfo.classList.remove('hidden');
         } else {
-            if (tidalLoginForm) tidalLoginForm.classList.remove('hidden');
+            if (tidalLoginContainer) tidalLoginContainer.classList.remove('hidden');
             if (tidalConnectedInfo) tidalConnectedInfo.classList.add('hidden');
         }
+        // <<< END OF EDIT
     });
 
     socket.on('outputsList', (outputs) => {
