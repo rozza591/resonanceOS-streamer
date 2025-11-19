@@ -54,8 +54,9 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "https://cdn.jsdelivr.net"], // <-- MODIFIED for metadata script
-            styleSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"], // <-- MODIFIED for metadata script
+            scriptSrcAttr: ["'unsafe-inline'"], // <-- ADDED for inline event handlers
+            styleSrc: ["'self'", "'unsafe-inline'"], // <-- ADDED for inline styles
             imgSrc: ["'self'", "data:", "blob:", "https://www.theaudiodb.com"], // <-- ADDED for art
             mediaSrc: ["'self'"],
             connectSrc: ["'self'", "ws:", "wss:", "https://www.theaudiodb.com"], // <-- ADDED for API

@@ -313,8 +313,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Library Tab Listeners
-    libraryTabs.addEventListener('click', (e) => {
-        if (e.target.classList.contains('tab-btn')) {
+    libraryTabs.forEach(tab => {
+        tab.addEventListener('click', (e) => {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             e.target.classList.add('active');
             const viewName = e.target.dataset.tab;
@@ -322,11 +322,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (viewName === 'artists') socket.emit('getArtists');
             // Actually, server.js doesn't have a 'getPlaylists' handler, it sends on connection and updates.
-            // Let's add a 'getPlaylists' handler to server.js later if needed, or just rely on the initial send.
             // Wait, server.js line 323: sendPlaylists sends 'playlistsList'.
             // And line 207: 'stored_playlist' event triggers sendPlaylists.
             // So we just need to listen to 'playlistsList'.
-        }
+        });
     });
 
     // Radio Listeners
