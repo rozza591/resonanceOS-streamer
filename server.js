@@ -306,6 +306,13 @@ function getWebHeaders(creds) {
 
 // --- 10. TIDAL ROUTES ---
 
+// Config endpoint for frontend
+app.get('/api/config', (req, res) => {
+    res.json({
+        tidalClientId: CONFIG.TIDAL_CLIENT_ID || null
+    });
+});
+
 app.get('/api/tidal/search', async (req, res) => {
     const { query, type, limit } = req.query;
     if (!query) return res.status(400).json({ error: 'Query required' });
