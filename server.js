@@ -201,7 +201,7 @@ app.post('/auth/tidal/login', async (req, res) => {
 
 // B. Manual Session Entry
 app.post('/auth/tidal/session', async (req, res) => {
-    const { sessionId, countryCode, userId, clientToken, accessToken } = req.body;
+    const { sessionId, countryCode: inputCountryCode, userId, clientToken, accessToken } = req.body;
     const tokenToUse = clientToken || CONFIG.TIDAL_TOKEN;
 
     if (!accessToken && (!sessionId || !userId)) {
@@ -216,28 +216,35 @@ app.post('/auth/tidal/session', async (req, res) => {
             : { 'X-Tidal-SessionId': sessionId, 'X-Tidal-Token': tokenToUse };
 
         let finalUserId = userId;
+        // >>> START OF EDIT: Auto-detect Country Code
+        let finalCountryCode = inputCountryCode || 'US';
 
         if (accessToken) {
             const sessionRes = await axios.get(`https://api.tidal.com/v1/sessions`, { headers });
             finalUserId = sessionRes.data.userId;
+            if (sessionRes.data.countryCode) {
+                finalCountryCode = sessionRes.data.countryCode;
+                console.log(`[Auth] Auto-detected Country Code: ${finalCountryCode}`);
+            }
             if (!finalUserId) throw new Error('Could not retrieve User ID from Access Token');
         } else {
             await axios.get(`https://api.tidal.com/v1/users/${userId}`, {
                 headers: headers,
-                params: { countryCode: countryCode || 'US' }
+                params: { countryCode: finalCountryCode }
             });
         }
 
         await saveSessionToDB(
             sessionId || 'bearer',
-            countryCode || 'US',
+            finalCountryCode, // Use the detected or verified country code
             finalUserId,
             tokenToUse,
             'ManualUser',
             accessToken
         );
+        // <<< END OF EDIT
 
-        console.log(`[Auth] Manual session saved for User: ${finalUserId}`);
+        console.log(`[Auth] Manual session saved for User: ${finalUserId}, Country: ${finalCountryCode}`);
         res.json({ success: true, message: 'Manual session saved' });
     } catch (err) {
         console.error(`[Auth] Invalid session provided: ${err.message}`);
@@ -498,72 +505,76 @@ io.on('connection', (socket) => {
         socket.emit('songList', { album: album, songs: songs, metadata: meta });
     }, 'songs'));
 
-    // >>> START OF EDIT: Updated Atomic 'playTrack' with Country Code & Fallback Chain
+
     socket.on('playTrack', (data) => safe(async () => {
         console.log(`[Player] playTrack: ${data.uri} (clear: ${data.clear})`);
 
         if (data.clear) await sendMpdCommand('clear');
 
-        let urlToAdd = data.uri;
+        let resolvedUrl = null;
 
         if (data.service === 'tidal') {
             const id = data.uri.split('/').pop();
             console.log(`[Player] Resolving Tidal ID: ${id}`);
             const creds = await getTidalCredentials();
 
-            // Common params for stream request
+            // >>> START OF EDIT: Debug log country code
+            console.log(`[Player] Using Country Code: ${creds.countryCode}`);
+
             const playbackParams = {
                 playbackmode: 'STREAM',
                 assetpresentation: 'FULL',
-                countryCode: creds.countryCode // Critical fix: Add country code
+                countryCode: creds.countryCode
             };
 
-            // Recursive fallback chain: HI_RES -> LOSSLESS -> HIGH -> LOW
             try {
-                // 1. Try HI_RES (Master)
+                // 1. Try HI_RES
                 const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
                     params: { ...playbackParams, audioquality: 'HI_RES' },
                     headers: getWebHeaders(creds)
                 });
-                urlToAdd = res.data.url;
+                resolvedUrl = res.data.url;
             } catch (e1) {
                 try {
                     console.log('[Tidal] HI_RES failed, trying LOSSLESS...');
-                    // 2. Try LOSSLESS (Hifi)
+                    // 2. Try LOSSLESS
                     const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
                         params: { ...playbackParams, audioquality: 'LOSSLESS' },
                         headers: getWebHeaders(creds)
                     });
-                    urlToAdd = res.data.url;
+                    resolvedUrl = res.data.url;
                 } catch (e2) {
                     try {
                         console.log('[Tidal] LOSSLESS failed, trying HIGH...');
-                        // 3. Try HIGH (320kbps AAC)
+                        // 3. Try HIGH
                         const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
                             params: { ...playbackParams, audioquality: 'HIGH' },
                             headers: getWebHeaders(creds)
                         });
-                        urlToAdd = res.data.url;
+                        resolvedUrl = res.data.url;
                     } catch (e3) {
                         console.log('[Tidal] HIGH failed, trying LOW...');
-                        // 4. Try LOW (96kbps AAC) - Last resort
+                        // 4. Try LOW
                         const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
                             params: { ...playbackParams, audioquality: 'LOW' },
                             headers: getWebHeaders(creds)
                         });
-                        urlToAdd = res.data.url;
+                        resolvedUrl = res.data.url;
                     }
                 }
             }
-
-            if (!urlToAdd) throw new Error('Failed to resolve Tidal URL (404/Unavailable)');
+        } else {
+            resolvedUrl = data.uri;
         }
 
-        await sendMpdCommand('add', [urlToAdd]);
+        // >>> START OF EDIT: Explicit check before adding
+        if (!resolvedUrl) throw new Error('Failed to resolve URL for playback.');
+
+        await sendMpdCommand('add', [resolvedUrl]);
         await sendMpdCommand('play');
+        // <<< END OF EDIT
 
     }, 'playTrack'));
-    // <<< END OF EDIT
 
     socket.on('addToQueue', (uri) => safe(async () => {
         if (uri.includes('tidal') || /^\d+$/.test(uri)) {
