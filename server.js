@@ -1,4 +1,5 @@
 // --- 1. Imports (CommonJS) ---
+require('dotenv').config(); // <--- CRITICAL: Loads .env variables
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -25,7 +26,6 @@ const CONFIG = {
     MPD_PORT: process.env.MPD_PORT || 6600,
     MUSIC_DIR: process.env.MUSIC_DIR || '/var/lib/mpd/music',
     DB_PATH: process.env.DB_PATH || path.join(__dirname, 'audiophile.db'),
-    // USES .env VALUE FIRST, FALLS BACK TO LOCALHOST
     REDIRECT_URI: process.env.REDIRECT_URI || 'http://localhost:3000/auth/tidal/callback',
     MAX_FILE_SIZE: 500 * 1024 * 1024,
     MAX_FILES: 50,
@@ -320,15 +320,14 @@ function validateMusicPath(relativePath) {
 // 1. TIDAL Auth Routes
 app.get('/auth/tidal', (req, res) => {
     const clientId = process.env.TIDAL_CLIENT_ID;
-    // HERE IS THE FIX: Using the configured URI from .env
     const redirectUri = CONFIG.REDIRECT_URI;
 
     if (!clientId) {
         console.error('[Auth] Missing TIDAL_CLIENT_ID in .env');
-        return res.redirect('/?error=config_error');
+        return res.send('<h1>Error: Missing Configuration</h1><p>TIDAL_CLIENT_ID is missing from .env file.</p>');
     }
 
-    // Valid Scopes
+    // Updated scopes to match your Dashboard
     const scope = encodeURIComponent('playback user.read collection.read playlists.read search.read');
 
     console.log(`[Auth] Initiating Tidal Login. Redirecting to: ${redirectUri}`);
@@ -343,16 +342,30 @@ app.get('/auth/tidal/callback', async (req, res) => {
 
     console.log(`[Auth] Received Tidal Callback code. Exchanging for token...`);
 
+    const clientId = process.env.TIDAL_CLIENT_ID;
+    const clientSecret = process.env.TIDAL_CLIENT_SECRET;
+
+    if (!clientSecret) {
+        console.error('[Auth] Missing TIDAL_CLIENT_SECRET');
+        return res.send('<h1>Error: Missing Configuration</h1><p>TIDAL_CLIENT_SECRET is missing from .env file.</p>');
+    }
+
     try {
         const params = new URLSearchParams();
         params.append('grant_type', 'authorization_code');
         params.append('code', code);
-        params.append('client_id', process.env.TIDAL_CLIENT_ID);
-        params.append('client_secret', process.env.TIDAL_CLIENT_SECRET);
-        // MUST MATCH EXACTLY the URI sent in the first step
         params.append('redirect_uri', CONFIG.REDIRECT_URI);
 
-        const tokenResponse = await axios.post('https://auth.tidal.com/v1/oauth2/token', params);
+        // Using Basic Auth Header for robustness
+        const authHeader = 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+        const tokenResponse = await axios.post('https://auth.tidal.com/v1/oauth2/token', params, {
+            headers: {
+                'Authorization': authHeader,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        });
+
         const { access_token, refresh_token } = tokenResponse.data;
 
         await new Promise((resolve, reject) => {
@@ -366,18 +379,23 @@ app.get('/auth/tidal/callback', async (req, res) => {
         console.log('[Auth] Tidal login successful');
         res.redirect('/?status=tidal_connected');
     } catch (error) {
-        console.error('[Auth] Tidal token exchange failed:', error.response?.data || error.message);
-        res.redirect('/?error=tidal_failed');
+        const errorData = error.response ? JSON.stringify(error.response.data) : error.message;
+        console.error('[Auth] Tidal token exchange failed:', errorData);
+
+        // PRINT ERROR TO BROWSER FOR DEBUGGING
+        res.status(500).send(`
+            <h1>Tidal Login Failed</h1>
+            <p>Server could not exchange code for token.</p>
+            <pre>${errorData}</pre>
+            <p>Check your terminal logs for more details.</p>
+            <a href="/">Back to Home</a>
+        `);
     }
 });
 
 // 2. QOBUZ Auth Routes
 app.get('/auth/qobuz', (req, res) => {
     const appId = process.env.QOBUZ_APP_ID;
-    // Assuming same pattern for Qobuz - you should add QOBUZ_REDIRECT_URI to .env if needed
-    // For now, building it dynamically or using a separate env var if you wish.
-    // We'll stick to the dynamic base or a fixed one if you add it.
-    // Let's use the same host as TIDAL for consistency:
     const host = new URL(CONFIG.REDIRECT_URI).origin;
     const redirectUri = `${host}/auth/qobuz/callback`;
 
