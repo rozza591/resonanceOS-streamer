@@ -132,6 +132,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSource = 'local';
     let searchTimeout;
 
+    // >>> START OF EDIT: Navigation Stack for Tidal
+    let tidalHistory = [];
+    // <<< END OF EDIT
+
     // Path utility function
     const path = {
         basename: (filePath) => {
@@ -149,14 +153,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${m}:${s}`;
     };
 
-    // >>> START OF EDIT: New Helper for Tidal Images
-    // Converts GUID (e.g., abcd-1234) to path (abcd/1234) for Tidal CDN
     const getTidalImage = (uuid, size = 320) => {
         if (!uuid) return '';
         const path = uuid.replace(/-/g, '/');
         return `https://resources.tidal.com/images/${path}/${size}x${size}.jpg`;
     };
-    // <<< END OF EDIT
 
     const openModal = (modal) => {
         if (!modal) return;
@@ -165,6 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (librarySpinner) librarySpinner.classList.remove('hidden');
             showLibraryView('artists');
             if (librarySearch) librarySearch.value = '';
+            tidalHistory = []; // Reset history on open
         }
         if (modal === settingsModal) {
             if (settingsSpinner) settingsSpinner.classList.remove('hidden');
@@ -236,24 +238,19 @@ document.addEventListener('DOMContentLoaded', () => {
         btnTidalLogin.addEventListener('click', async () => {
             const username = tidalUsername.value.trim();
             const password = tidalPassword.value.trim();
-
             if (!username || !password) {
                 alert('Please enter both username and password.');
                 return;
             }
-
             btnTidalLogin.disabled = true;
             btnTidalLogin.textContent = 'Logging in...';
-
             try {
                 const res = await fetch('/auth/tidal/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
-
                 const data = await res.json();
-
                 if (res.ok) {
                     showToast('Tidal Login Successful!', 'success');
                     tidalUsername.value = '';
@@ -277,24 +274,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const sessionId = tidalSessionIdInput.value.trim();
             const userId = tidalUserIdInput.value.trim();
             const countryCode = tidalCountryCodeInput.value.trim();
-
             if (!accessToken && (!sessionId || !userId)) {
                 alert('Please provide either a Bearer Token OR (Session ID + User ID).');
                 return;
             }
-
             btnTidalManual.disabled = true;
             btnTidalManual.textContent = 'Saving...';
-
             try {
                 const res = await fetch('/auth/tidal/session', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sessionId, userId, countryCode, accessToken })
                 });
-
                 const data = await res.json();
-
                 if (res.ok) {
                     showToast('Manual Session Saved!', 'success');
                     if (tidalAccessTokenInput) tidalAccessTokenInput.value = '';
@@ -364,8 +356,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // >>> START OF EDIT: Enhanced Back Button Logic for Tidal History
     if (libraryBackBtn) {
         libraryBackBtn.addEventListener('click', () => {
+            // Handle Tidal History
+            if (currentSource === 'tidal' && tidalHistory.length > 0) {
+                // Pop current view
+                tidalHistory.pop();
+                const previousView = tidalHistory[tidalHistory.length - 1];
+
+                if (previousView) {
+                    // Render previous state
+                    renderTidalResults(previousView);
+                    if (librarySearch) librarySearch.value = previousView.query || '';
+                } else {
+                    // Back to initial search state
+                    if (tidalViewSearch) tidalViewSearch.innerHTML = '';
+                    tidalHistory = [];
+                    if (libraryBackBtn) libraryBackBtn.classList.add('hidden');
+                    if (librarySearch) librarySearch.value = '';
+                    if (librarySearch) librarySearch.focus();
+                }
+                return;
+            }
+
+            // Local History Logic
             if (librarySearch) librarySearch.value = '';
             if (currentLibraryView === 'tracks') {
                 showLibraryView('albums', currentArtist);
@@ -376,6 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    // <<< END OF EDIT
 
     const sourceBtns = document.querySelectorAll('.source-btn');
     sourceBtns.forEach(btn => {
@@ -580,6 +596,41 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (view === 'playlists' && libraryViewPlaylists) libraryViewPlaylists.classList.remove('hidden');
     };
 
+    // >>> START OF EDIT: Fetch Albums for a Tidal Artist
+    const fetchTidalArtistAlbums = async (artistId, artistName) => {
+        if (!tidalViewSearch || !librarySpinner) return;
+
+        librarySpinner.classList.remove('hidden');
+        tidalViewSearch.innerHTML = '';
+
+        try {
+            const res = await fetch(`/api/tidal/artists/${artistId}/albums`);
+            if (!res.ok) throw new Error(`Status ${res.status}`);
+            const data = await res.json();
+
+            // Mock a search result structure to reuse the renderer
+            const result = {
+                albums: { items: data.items || [] }
+            };
+
+            // Push to history so Back button works
+            tidalHistory.push({ type: 'artist_albums', artistId, data: result });
+
+            // Update Header or Search input to show context (optional)
+            if (librarySearch) librarySearch.value = `Albums by ${artistName}`;
+            if (libraryBackBtn) libraryBackBtn.classList.remove('hidden');
+
+            renderTidalResults(result);
+
+        } catch (e) {
+            console.error('Tidal Albums Error:', e);
+            showToast('Failed to load albums', 'error');
+        } finally {
+            librarySpinner.classList.add('hidden');
+        }
+    };
+    // <<< END OF EDIT
+
     const fetchTidalSearch = async (query) => {
         if (!tidalViewSearch) return;
 
@@ -588,11 +639,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const res = await fetch(`/api/tidal/search?query=${encodeURIComponent(query)}`);
-            // >>> START OF EDIT: Check status and use Safe Parsing
             if (!res.ok) throw new Error(`Status ${res.status}`);
             const data = await res.json();
+
+            // Push query to history
+            tidalHistory.push({ type: 'search', query, data });
+
             renderTidalResults(data);
-            // <<< END OF EDIT
         } catch (e) {
             console.error('Tidal Search Error:', e);
             showToast('Tidal search failed', 'error');
@@ -604,8 +657,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderTidalResults = (data) => {
         if (!tidalViewSearch) return;
         tidalViewSearch.classList.remove('hidden');
+        tidalViewSearch.innerHTML = ''; // Ensure clear before render
 
-        // >>> START OF EDIT: Added Optional Chaining (?.) and getTidalImage usage
         // Render Artists
         if (data?.artists?.items) {
             data.artists.items.forEach(artist => {
@@ -616,6 +669,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <img src="${img}" onerror="this.style.display='none';this.parentElement.style.backgroundColor='#333'">
                     <span>${artist?.name || 'Unknown'}</span>
                 `;
+                // >>> START OF EDIT: Click Handler
+                div.addEventListener('click', () => {
+                    fetchTidalArtistAlbums(artist.id, artist.name);
+                });
+                // <<< END OF EDIT
                 tidalViewSearch.appendChild(div);
             });
         }
@@ -663,8 +721,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             tidalViewSearch.appendChild(ul);
         }
-        // <<< END OF EDIT
     };
+
+
+    // --- 7. Socket Handlers ---
 
     socket.on('connect', () => {
         if (statusLight) statusLight.classList.add('connected');
@@ -881,4 +941,5 @@ document.addEventListener('DOMContentLoaded', () => {
         visualizerCanvas.width = visualizerCanvas.offsetWidth;
         visualizerCanvas.height = visualizerCanvas.offsetHeight;
     }
+
 });

@@ -176,9 +176,7 @@ app.post('/auth/tidal/login', async (req, res) => {
         const { sessionId, userId, countryCode } = response.data;
         if (!sessionId) throw new Error('Login succeeded but no Session ID returned.');
 
-        // >>> START OF EDIT: Pass null for accessToken
         await saveSessionToDB(sessionId, countryCode, userId, CONFIG.TIDAL_TOKEN, username, null);
-        // <<< END OF EDIT
 
         console.log(`[Auth] Tidal login successful. User: ${userId}, Country: ${countryCode}`);
         res.json({ success: true, message: 'Connected to Tidal' });
@@ -203,7 +201,6 @@ app.post('/auth/tidal/login', async (req, res) => {
 
 // B. Manual Session Entry
 app.post('/auth/tidal/session', async (req, res) => {
-    // >>> START OF EDIT: Added accessToken support
     const { sessionId, countryCode, userId, clientToken, accessToken } = req.body;
     const tokenToUse = clientToken || CONFIG.TIDAL_TOKEN;
 
@@ -250,11 +247,9 @@ app.post('/auth/tidal/session', async (req, res) => {
         console.error(`[Auth] Invalid session provided: ${err.message}`);
         res.status(401).json({ error: 'The provided session/token is invalid or expired.' });
     }
-    // <<< END OF EDIT
 });
 
 // DB Helper
-// >>> START OF EDIT: Added token param
 async function saveSessionToDB(sid, cc, uid, token, user, accessToken) {
     return new Promise((resolve, reject) => {
         db.run(
@@ -264,13 +259,11 @@ async function saveSessionToDB(sid, cc, uid, token, user, accessToken) {
         );
     });
 }
-// <<< END OF EDIT
 
 // --- 9. TIDAL API HELPERS ---
 
 async function getTidalCredentials() {
     return new Promise((resolve, reject) => {
-        // >>> START OF EDIT: Select 'token'
         db.get("SELECT session_id, country_code, user_id, client_token, token FROM services WHERE service = 'tidal'", (err, row) => {
             if (err) return reject(err);
             if (!row || (!row.session_id && !row.token)) {
@@ -284,11 +277,9 @@ async function getTidalCredentials() {
                 accessToken: row.token // Return bearer token
             });
         });
-        // <<< END OF EDIT
     });
 }
 
-// >>> START OF EDIT: Prefer Bearer Header
 function getWebHeaders(creds) {
     if (creds.accessToken) {
         return {
@@ -301,7 +292,6 @@ function getWebHeaders(creds) {
         'X-Tidal-Token': creds.clientToken,
     };
 }
-// <<< END OF EDIT
 
 // --- 10. TIDAL ROUTES ---
 
@@ -331,6 +321,31 @@ app.get('/api/tidal/search', async (req, res) => {
         res.status(500).json({ error: 'Tidal search failed' });
     }
 });
+
+// >>> START OF EDIT: New Route for Artist Albums
+app.get('/api/tidal/artists/:id/albums', async (req, res) => {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'Artist ID required' });
+
+    try {
+        const creds = await getTidalCredentials();
+        console.log(`[Tidal] Fetching albums for artist: ${id}`);
+
+        const response = await axios.get(`https://api.tidal.com/v1/artists/${id}/albums`, {
+            params: {
+                limit: 50,
+                countryCode: creds.countryCode
+            },
+            headers: getWebHeaders(creds)
+        });
+
+        res.json(response.data);
+    } catch (error) {
+        console.error('[Tidal] Artist albums failed:', error.message);
+        res.status(500).json({ error: 'Failed to fetch albums' });
+    }
+});
+// <<< END OF EDIT
 
 // --- 11. MPD Connection ---
 async function connectMPD() {
@@ -477,7 +492,6 @@ io.on('connection', (socket) => {
 
     // Services
     socket.on('getServices', () => safe(() => {
-        // >>> START OF EDIT: Check if 'token' exists
         db.all("SELECT * FROM services", [], (err, rows) => {
             const s = {};
             rows.forEach(r => {
@@ -485,7 +499,6 @@ io.on('connection', (socket) => {
             });
             socket.emit('servicesList', s);
         });
-        // <<< END OF EDIT
     }, 'services'));
 
     socket.on('logoutService', (svc) => safe(() => {
@@ -523,11 +536,9 @@ const init = async () => {
             db.run(`CREATE TABLE IF NOT EXISTS albums (artist TEXT, album TEXT, year INT, description TEXT, PRIMARY KEY(artist, album))`);
             db.run(`CREATE TABLE IF NOT EXISTS services (service TEXT PRIMARY KEY, session_id TEXT, country_code TEXT, user_id TEXT, client_token TEXT, username TEXT, token TEXT, password TEXT, appid TEXT)`,
                 (err) => {
-                    // >>> START OF EDIT: Add 'token' column if missing
                     if (!err) {
                         ['session_id', 'country_code', 'user_id', 'client_token', 'username', 'token'].forEach(c => db.run(`ALTER TABLE services ADD COLUMN ${c} TEXT`, () => { }));
                     }
-                    // <<< END OF EDIT
                     r();
                 });
         }));
