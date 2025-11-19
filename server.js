@@ -12,6 +12,7 @@ const fs = require('fs').promises; // Use promises API
 const fsSync = require('fs'); // For sync operations where needed
 const musicMetadata = require('music-metadata');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet'); // ADDED: Restored missing import
 const crypto = require('crypto'); // ADDED for PKCE
 const session = require('express-session'); // ADDED for PKCE
 const axios = require('axios');
