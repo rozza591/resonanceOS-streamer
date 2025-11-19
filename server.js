@@ -511,139 +511,14 @@ io.on('connection', (socket) => {
 
         let resolvedUrl = null;
 
+        // Tidal playback is handled by the frontend SDK player (Terms of Service compliance)
         if (data.service === 'tidal') {
-            const id = data.uri.split('/').pop();
-            console.log(`[Player] Resolving Tidal ID: ${id}`);
-            const creds = await getTidalCredentials();
-            console.log(`[Player] Using Country Code: ${creds.countryCode}`);
-
-            const playbackParams = {
-                playbackmode: 'STREAM',
-                assetpresentation: 'FULL',
-                countryCode: creds.countryCode
-            };
-
-            if (creds.accessToken) {
-                // >>> START OF EDIT: Enhanced Web Token Strategy (Logging + Fallbacks)
-                console.log(`[Tidal] Using Web Token Strategy (playbackinfopostpaywall/v4)`);
-                // Added HI_RES_LOSSLESS for new Tidal tiers
-                const qualities = ['HI_RES_LOSSLESS', 'HI_RES', 'LOSSLESS', 'HIGH', 'LOW'];
-
-                for (const quality of qualities) {
-                    try {
-                        console.log(`[Tidal] Attempting quality: ${quality}`);
-                        const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/playbackinfopostpaywall/v4`, {
-                            params: { ...playbackParams, audioquality: quality },
-                            headers: getWebHeaders(creds)
-                        });
-
-                        console.log(`[Tidal] Response Type: ${res.data.manifestMimeType}`);
-
-                        // Handle JSON Manifest (BTC)
-                        if (res.data.manifestMimeType === 'application/vnd.tidal.btc') {
-                            const manifest = JSON.parse(Buffer.from(res.data.manifest, 'base64').toString('utf-8'));
-                            if (manifest.urls && manifest.urls.length > 0) {
-                                resolvedUrl = manifest.urls[0];
-                                console.log(`[Tidal] Resolved BTC URL with quality: ${quality}`);
-                                break;
-                            }
-                        }
-                        // Handle DASH Manifest (Extract BaseURL from XML)
-                        else if (res.data.manifestMimeType === 'application/dash+xml') {
-                            console.log(`[Tidal] Parsing DASH manifest for quality: ${quality}`);
-                            const dashXml = Buffer.from(res.data.manifest, 'base64').toString('utf-8');
-
-                            // DEBUG: Log the first 500 chars of the manifest to see structure
-                            console.log(`[Tidal] DASH XML Preview:`, dashXml.substring(0, 500));
-
-                            // Try multiple patterns to extract URL
-                            let baseUrlMatch = dashXml.match(/<BaseURL>([^<]+)<\/BaseURL>/);
-                            if (!baseUrlMatch) {
-                                // Try CDATA format
-                                baseUrlMatch = dashXml.match(/<BaseURL><!\[CDATA\[([^\]]+)\]\]><\/BaseURL>/);
-                            }
-                            if (!baseUrlMatch) {
-                                // Try looking for any http/https URL in the manifest
-                                baseUrlMatch = dashXml.match(/https?:\/\/[^\s<>"]+\.(?:mp4|m4a|flac)/);
-                            }
-
-                            if (baseUrlMatch && baseUrlMatch[1]) {
-                                resolvedUrl = baseUrlMatch[1];
-                                console.log(`[Tidal] Resolved DASH URL with quality: ${quality}`);
-                                break;
-                            } else {
-                                console.warn(`[Tidal] DASH manifest has no extractable URL`);
-                            }
-                        }
-                    } catch (e) {
-                        const errStatus = e.response?.status || 'Unknown';
-                        console.warn(`[Tidal] Quality ${quality} failed: ${errStatus} - ${e.message}`);
-                        // Only stop if 401 Unauthorized (Token dead)
-                        if (errStatus === 401) throw e;
-                    }
-                }
-                // <<< END OF EDIT
-            } else {
-                // Strategy A: Legacy Token (/url)
-                console.log(`[Tidal] Using Legacy Token Strategy (/url)`);
-                try {
-                    const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                        params: { ...playbackParams, audioquality: 'HI_RES' },
-                        headers: getWebHeaders(creds)
-                    });
-                    resolvedUrl = res.data.url;
-                } catch (e1) {
-                    if (e1.response && e1.response.status === 401) throw e1;
-                }
-            }
-
-            // FALLBACK: If DASH didn't work (bearer token issue), try legacy /url endpoint
-            if (!resolvedUrl && creds.accessToken) {
-                console.log(`[Tidal] DASH failed, attempting fallback to legacy /url endpoint...`);
-                try {
-                    const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                        params: { ...playbackParams, audioquality: 'HI_RES' },
-                        headers: getWebHeaders(creds)
-                    });
-                    if (res.data.url) {
-                        resolvedUrl = res.data.url;
-                        console.log(`[Tidal] Fallback successful - got direct URL`);
-                    }
-                } catch (fallbackErr) {
-                    console.warn(`[Tidal] Fallback to /url failed:`, fallbackErr.message);
-                }
-            }
-
-            // FALLBACK 2: Try /streamUrl endpoint
-            if (!resolvedUrl && creds.accessToken) {
-                console.log(`[Tidal] Attempting /streamUrl endpoint...`);
-                try {
-                    const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/streamUrl`, {
-                        params: { ...playbackParams, audioquality: 'HI_RES' },
-                        headers: getWebHeaders(creds)
-                    });
-                    if (res.data.url) {
-                        resolvedUrl = res.data.url;
-                        console.log(`[Tidal] /streamUrl successful - got direct URL`);
-                    }
-                } catch (streamUrlErr) {
-                    console.warn(`[Tidal] /streamUrl also failed:`, streamUrlErr.message);
-                }
-            }
-
-            // FALLBACK 3: Use yt-dlp to extract URL from Tidal (if installed)
-            if (!resolvedUrl) {
-                console.log(`[Tidal] All API methods failed. Attempting yt-dlp extraction...`);
-                try {
-                    const { stdout } = await execAsync(`yt-dlp -f bestaudio --get-url "https://tidal.com/browse/track/${id}"`);
-                    resolvedUrl = stdout.trim();
-                    if (resolvedUrl) {
-                        console.log(`[Tidal] yt-dlp extraction successful`);
-                    }
-                } catch (ytdlpErr) {
-                    console.warn(`[Tidal] yt-dlp extraction failed (is yt-dlp installed?):`, ytdlpErr.message);
-                }
-            }
+            console.log(`[Player] Tidal playback must use frontend SDK player`);
+            socket.emit('error', {
+                message: 'Tidal playback is handled in the browser. This should not be called from backend.',
+                code: 'TIDAL_FRONTEND_ONLY'
+            });
+            return;
         } else {
             resolvedUrl = data.uri;
         }
