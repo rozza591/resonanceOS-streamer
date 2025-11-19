@@ -329,7 +329,7 @@ app.get('/auth/tidal', (req, res) => {
     }
 
     // Valid Scopes
-    const scope = encodeURIComponent('r_usr w_usr');
+    const scope = encodeURIComponent('playback user.read collection.read playlists.read search.read');
 
     console.log(`[Auth] Initiating Tidal Login. Redirecting to: ${redirectUri}`);
 
