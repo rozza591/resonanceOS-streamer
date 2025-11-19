@@ -310,6 +310,82 @@ app.get('/auth/qobuz/callback', async (req, res) => {
     } catch (e) { res.redirect('/?error=qobuz_failed'); }
 });
 
+// --- Tidal API Proxy Routes ---
+
+async function getTidalToken() {
+    return new Promise((resolve, reject) => {
+        db.get("SELECT token FROM services WHERE service = 'tidal'", (err, row) => {
+            if (err) return reject(err);
+            if (!row || !row.token) return reject(new Error('Tidal not connected'));
+            resolve(row.token);
+        });
+    });
+}
+
+async function getTidalSession(token) {
+    try {
+        const response = await axios.get('https://api.tidal.com/v1/sessions', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.data; // Contains userId, countryCode
+    } catch (error) {
+        console.error('[Tidal] Failed to get session:', error.message);
+        throw error;
+    }
+}
+
+app.get('/api/tidal/search', async (req, res) => {
+    const { query, type } = req.query; // type: 'ARTISTS', 'ALBUMS', 'TRACKS', 'PLAYLISTS'
+    if (!query) return res.status(400).json({ error: 'Query required' });
+
+    try {
+        const token = await getTidalToken();
+        const session = await getTidalSession(token);
+
+        const searchType = type || 'ARTISTS,ALBUMS,TRACKS,PLAYLISTS';
+        const limit = 10;
+
+        const response = await axios.get('https://api.tidal.com/v1/search', {
+            params: {
+                query,
+                types: searchType,
+                limit,
+                countryCode: session.countryCode
+            },
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        res.json(response.data);
+    } catch (error) {
+        console.error('[Tidal] Search failed:', error.message);
+        res.status(500).json({ error: 'Tidal search failed' });
+    }
+});
+
+app.get('/api/tidal/favorites/:type', async (req, res) => {
+    const { type } = req.params; // playlists, albums, tracks
+    // Map frontend types to Tidal API types if needed, but they mostly match
+    // Tidal: users/{id}/favorites/playlists, .../albums, .../tracks
+
+    try {
+        const token = await getTidalToken();
+        const session = await getTidalSession(token);
+
+        const response = await axios.get(`https://api.tidal.com/v1/users/${session.userId}/favorites/${type}`, {
+            params: {
+                countryCode: session.countryCode,
+                limit: 50
+            },
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        res.json(response.data);
+    } catch (error) {
+        console.error(`[Tidal] Fetch favorites ${type} failed:`, error.message);
+        res.status(500).json({ error: `Failed to fetch Tidal ${type}` });
+    }
+});
+
 // --- 9. MPD Connection Management ---
 async function connectMPD() {
     try {

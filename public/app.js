@@ -776,21 +776,221 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Library Handlers ---
+    // --- Library Logic ---
 
-    const showLibraryView = (view, title = 'Library') => {
+    // currentLibraryView, currentArtist, currentAlbum are already declared globally
+    let currentSource = 'local'; // 'local' or 'tidal'
+    let currentTidalTab = 'tidal-search';
+
+    // DOM Elements for Library (Already declared globally)
+    // libraryModal, libraryTitle, btnCloseLibrary, libraryBackBtn, librarySearch, librarySpinner
+
+    // Source Selector
+    const sourceBtns = document.querySelectorAll('.source-btn');
+    const localTabs = document.getElementById('local-tabs');
+    const tidalTabs = document.getElementById('tidal-tabs');
+
+    // Local Views (Already declared globally)
+    // libraryViewArtists, libraryViewAlbums, libraryViewTracks, libraryViewPlaylists, libraryViewRadio
+
+    // Tidal Views
+    const tidalViewSearch = document.getElementById('tidal-view-search');
+    const tidalViewPlaylists = document.getElementById('tidal-view-playlists');
+    const tidalViewAlbums = document.getElementById('tidal-view-albums');
+    const tidalViewTracks = document.getElementById('tidal-view-tracks');
+
+    // Album Info (Already declared globally)
+    // libraryAlbumInfo, libraryAlbumArt, libraryAlbumTitle, libraryAlbumArtist, libraryAlbumYear, libraryAlbumDescription, btnFetchMetadata
+
+    // --- Source Switching ---
+    sourceBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const source = btn.dataset.source;
+            switchSource(source);
+        });
+    });
+
+    const switchSource = (source) => {
+        currentSource = source;
+        sourceBtns.forEach(b => b.classList.toggle('active', b.dataset.source === source));
+
+        if (source === 'local') {
+            localTabs.classList.remove('hidden');
+            tidalTabs.classList.add('hidden');
+            showLibraryView(currentLibraryView); // Restore local view
+            librarySearch.placeholder = "Filter local library...";
+        } else {
+            localTabs.classList.add('hidden');
+            tidalTabs.classList.remove('hidden');
+            showTidalTab(currentTidalTab); // Show last Tidal tab
+            librarySearch.placeholder = "Search Tidal...";
+        }
+    };
+
+    // --- Tidal Tab Switching ---
+    tidalTabs.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.dataset.tab;
+            showTidalTab(tab);
+        });
+    });
+
+    const showTidalTab = (tab) => {
+        currentTidalTab = tab;
+        tidalTabs.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+
+        // Hide all Tidal views
+        [tidalViewSearch, tidalViewPlaylists, tidalViewAlbums, tidalViewTracks].forEach(el => el.classList.add('hidden'));
+
+        if (tab === 'tidal-search') {
+            tidalViewSearch.classList.remove('hidden');
+            if (librarySearch.value.trim() !== '') {
+                fetchTidalSearch(librarySearch.value);
+            }
+        } else if (tab === 'tidal-playlists') {
+            tidalViewPlaylists.classList.remove('hidden');
+            fetchTidalFavorites('playlists');
+        } else if (tab === 'tidal-albums') {
+            tidalViewAlbums.classList.remove('hidden');
+            fetchTidalFavorites('albums');
+        } else if (tab === 'tidal-tracks') {
+            tidalViewTracks.classList.remove('hidden');
+            fetchTidalFavorites('tracks');
+        }
+    };
+
+    // --- Tidal API Calls ---
+    let searchTimeout;
+    const fetchTidalSearch = async (query) => {
+        librarySpinner.classList.remove('hidden');
+        try {
+            const res = await fetch(`/api/tidal/search?query=${encodeURIComponent(query)}`);
+            const data = await res.json();
+            renderTidalResults(data, 'search');
+        } catch (err) {
+            console.error('Tidal search error:', err);
+            showToast('Tidal search failed', 'error');
+        } finally {
+            librarySpinner.classList.add('hidden');
+        }
+    };
+
+    const fetchTidalFavorites = async (type) => {
+        librarySpinner.classList.remove('hidden');
+        try {
+            const res = await fetch(`/api/tidal/favorites/${type}`);
+            const data = await res.json();
+            renderTidalResults(data, type);
+        } catch (err) {
+            console.error(`Tidal ${type} error:`, err);
+            showToast(`Failed to fetch Tidal ${type}`, 'error');
+        } finally {
+            librarySpinner.classList.add('hidden');
+        }
+    };
+
+    const renderTidalResults = (data, type) => {
+        // Helper to create items
+        const createItem = (imgSrc, title, subtitle, onClick) => {
+            const div = document.createElement('div');
+            div.className = 'album-item'; // Reuse existing class for grid layout
+            div.innerHTML = `
+                <img src="${imgSrc || 'img/no-art.svg'}" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 24 24\\' fill=\\'%234a4a4a\\'><rect width=\\'24\\' height=\\'24\\' fill=\\'%23222\\' /></svg>'">
+                <span>${title}</span>
+                <span style="font-size: 0.8em; color: #888;">${subtitle || ''}</span>
+            `;
+            div.addEventListener('click', onClick);
+            return div;
+        };
+
+        const createTrack = (track) => {
+            const li = document.createElement('li');
+            li.className = 'library-track';
+            const img = track.album?.cover ? `https://resources.tidal.com/images/${track.album.cover.replace(/-/g, '/')}/80x80.jpg` : '';
+            li.innerHTML = `
+                <img src="${img}" class="track-art">
+                <div class="track-info">
+                    <div class="track-title">${track.title}</div>
+                    <div class="track-artist">${track.artist?.name || 'Unknown'}</div>
+                </div>
+                <span class="track-duration">${formatTime(track.duration)}</span>
+            `;
+            li.addEventListener('click', () => {
+                // TODO: Implement Playback
+                showToast(`Playing Tidal track: ${track.title}`, 'info');
+                // socket.emit('playTidal', track.id); // Future implementation
+            });
+            return li;
+        };
+
+        if (type === 'search') {
+            tidalViewSearch.innerHTML = '';
+            if (data.artists) {
+                // Render Artists (Horizontal scroll or section?) - For now just dump in grid
+                // tidalViewSearch.innerHTML += '<h3>Artists</h3>';
+                data.artists.items.forEach(artist => {
+                    const img = artist.picture ? `https://resources.tidal.com/images/${artist.picture.replace(/-/g, '/')}/320x320.jpg` : null;
+                    tidalViewSearch.appendChild(createItem(img, artist.name, 'Artist', () => { }));
+                });
+            }
+            if (data.albums) {
+                data.albums.items.forEach(album => {
+                    const img = album.cover ? `https://resources.tidal.com/images/${album.cover.replace(/-/g, '/')}/320x320.jpg` : null;
+                    tidalViewSearch.appendChild(createItem(img, album.title, album.artist?.name, () => { }));
+                });
+            }
+            if (data.tracks) {
+                const ul = document.createElement('ul');
+                ul.className = 'library-track-list';
+                ul.style.gridColumn = '1 / -1';
+                data.tracks.items.forEach(track => ul.appendChild(createTrack(track)));
+                tidalViewSearch.appendChild(ul);
+            }
+        } else if (type === 'playlists' || type === 'tidal-playlists') { // Handle both key names
+            tidalViewPlaylists.innerHTML = '';
+            const items = data.items || []; // Favorites API returns { items: [], limit: ... }
+            items.forEach(item => {
+                const pl = item.item || item; // Search vs Favorites structure might differ
+                const img = pl.image ? `https://resources.tidal.com/images/${pl.image.replace(/-/g, '/')}/320x320.jpg` : null;
+                tidalViewPlaylists.appendChild(createItem(img, pl.title, 'Playlist', () => { }));
+            });
+        } else if (type === 'albums' || type === 'tidal-albums') {
+            tidalViewAlbums.innerHTML = '';
+            const items = data.items || [];
+            items.forEach(item => {
+                const album = item.item || item;
+                const img = album.cover ? `https://resources.tidal.com/images/${album.cover.replace(/-/g, '/')}/320x320.jpg` : null;
+                tidalViewAlbums.appendChild(createItem(img, album.title, album.artist?.name, () => { }));
+            });
+        } else if (type === 'tracks' || type === 'tidal-tracks') {
+            tidalViewTracks.innerHTML = '';
+            const items = data.items || [];
+            items.forEach(item => {
+                const track = item.item || item;
+                tidalViewTracks.appendChild(createTrack(track));
+            });
+        }
+    };
+
+
+    // --- Existing Library Logic (Modified) ---
+
+    const showLibraryView = (view, filter = null) => {
         currentLibraryView = view;
-        libraryTitle.textContent = title;
-        librarySearch.value = '';
 
-        libraryViewArtists.classList.add('hidden');
-        libraryViewAlbums.classList.add('hidden');
-        libraryViewTracks.classList.add('hidden');
-        libraryAlbumInfo.classList.add('hidden');
+        // Hide all views first
+        [libraryViewArtists, libraryViewAlbums, libraryViewTracks, libraryViewPlaylists, libraryViewRadio, libraryAlbumInfo].forEach(el => el.classList.add('hidden'));
+
+        // Update Tabs
+        localTabs.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === view || (view === 'albums' && btn.dataset.tab === 'artists') || (view === 'tracks' && btn.dataset.tab === 'artists'));
+        });
+
+        libraryBackBtn.classList.add('hidden'); // Default hidden
 
         if (view === 'artists') {
             libraryViewArtists.classList.remove('hidden');
-            libraryBackBtn.classList.add('hidden');
+            socket.emit('getArtists');
         } else if (view === 'albums') {
             libraryViewAlbums.classList.remove('hidden');
             libraryBackBtn.classList.remove('hidden');
@@ -799,46 +999,64 @@ document.addEventListener('DOMContentLoaded', () => {
             libraryBackBtn.classList.remove('hidden');
         } else if (view === 'playlists') {
             libraryViewPlaylists.classList.remove('hidden');
-            libraryBackBtn.classList.add('hidden');
+            socket.emit('getPlaylists');
         } else if (view === 'radio') {
             libraryViewRadio.classList.remove('hidden');
-            libraryBackBtn.classList.add('hidden');
             renderRadioList();
-        } else if (view === 'tidal') {
-            document.getElementById('library-view-tidal').classList.remove('hidden');
-            libraryBackBtn.classList.add('hidden');
-            // Trigger browse
-            // socket.emit('browseService', 'tidal'); 
-        } else if (view === 'qobuz') {
-            document.getElementById('library-view-qobuz').classList.remove('hidden');
-            libraryBackBtn.classList.add('hidden');
-            // Trigger browse
-            // socket.emit('browseService', 'qobuz');
         }
     };
 
-    librarySearch.addEventListener('input', () => {
-        const filterText = librarySearch.value.toLowerCase();
-        let itemsToFilter;
-
-        if (currentLibraryView === 'artists') {
-            itemsToFilter = libraryViewArtists.querySelectorAll('.artist-item');
-        } else if (currentLibraryView === 'albums') {
-            itemsToFilter = libraryViewAlbums.querySelectorAll('.album-item');
+    libraryBackBtn.addEventListener('click', () => {
+        if (currentLibraryView === 'albums') {
+            showLibraryView('artists');
         } else if (currentLibraryView === 'tracks') {
-            itemsToFilter = libraryViewTracks.querySelectorAll('.library-track');
+            showLibraryView('albums', currentArtist);
         }
+    });
 
-        if (itemsToFilter) {
-            itemsToFilter.forEach(item => {
-                const itemText = item.textContent.toLowerCase();
-                item.style.display = itemText.includes(filterText) ? '' : 'none';
-            });
+    // Tab Click Handlers (Local)
+    localTabs.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.dataset.tab;
+            showLibraryView(tab);
+        });
+    });
+
+    librarySearch.addEventListener('input', () => {
+        const query = librarySearch.value.trim();
+
+        if (currentSource === 'tidal') {
+            clearTimeout(searchTimeout);
+            if (query.length > 2) {
+                searchTimeout = setTimeout(() => {
+                    if (currentTidalTab === 'tidal-search') {
+                        fetchTidalSearch(query);
+                    }
+                }, 500);
+            }
+        } else {
+            // Local Filtering
+            const filterText = query.toLowerCase();
+            let itemsToFilter;
+
+            if (currentLibraryView === 'artists') {
+                itemsToFilter = libraryViewArtists.querySelectorAll('.artist-item');
+            } else if (currentLibraryView === 'albums') {
+                itemsToFilter = libraryViewAlbums.querySelectorAll('.album-item');
+            } else if (currentLibraryView === 'tracks') {
+                itemsToFilter = libraryViewTracks.querySelectorAll('.library-track');
+            }
+
+            if (itemsToFilter) {
+                itemsToFilter.forEach(item => {
+                    const itemText = item.textContent.toLowerCase();
+                    item.style.display = itemText.includes(filterText) ? '' : 'none';
+                });
+            }
         }
     });
 
     socket.on('artistList', (artists) => {
-        libraryViewArtists.innerHTML = '';
         if (!artists || artists.length === 0) {
             libraryViewArtists.innerHTML = '<span>No artists found.</span>';
         } else {

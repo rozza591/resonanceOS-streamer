@@ -474,6 +474,36 @@ input[type="range"]::-moz-range-thumb {
     flex-shrink: 0;
 }
 
+.library-source-selector {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.source-btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--surface-2);
+    color: var(--text-secondary);
+    padding: 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: all 0.2s;
+}
+
+.source-btn:hover {
+    background: var(--surface-1);
+    color: var(--text-primary);
+}
+
+.source-btn.active {
+    background: var(--accent);
+    color: var(--bg-main);
+    border-color: var(--accent);
+}
+
 .library-tabs {
     display: flex;
     gap: 0.5rem;

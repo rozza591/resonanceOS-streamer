@@ -172,16 +172,28 @@
             <div class="modal-body">
 
                 <div class="library-header">
+                    <div class="library-source-selector">
+                        <button class="source-btn active" data-source="local">Local Music</button>
+                        <button class="source-btn" data-source="tidal">Tidal</button>
+                    </div>
+
                     <button id="library-back-btn" class="icon-btn hidden" title="Back">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M20 11H7.83L13.42 5.41L12 4L4 12L12 20L13.41 18.59L7.83 13H20V11Z" fill="#fff" />
                         </svg>
                     </button>
 
-                    <div class="library-tabs">
+                    <div class="library-tabs" id="local-tabs">
                         <button class="tab-btn active" data-tab="artists">Artists</button>
                         <button class="tab-btn" data-tab="playlists">Playlists</button>
                         <button class="tab-btn" data-tab="radio">Radio</button>
+                    </div>
+
+                    <div class="library-tabs hidden" id="tidal-tabs">
+                        <button class="tab-btn active" data-tab="tidal-search">Search</button>
+                        <button class="tab-btn" data-tab="tidal-playlists">My Playlists</button>
+                        <button class="tab-btn" data-tab="tidal-albums">My Albums</button>
+                        <button class="tab-btn" data-tab="tidal-tracks">My Tracks</button>
                     </div>
 
                     <div class="search-bar">
@@ -206,10 +218,18 @@
                         </div>
                         <p id="library-album-description" class="album-info-description"></p>
                     </div>
+
+                    <!-- Local Views -->
                     <div id="library-view-artists" class="library-grid"></div>
                     <div id="library-view-albums" class="library-grid hidden"></div>
                     <ul id="library-view-tracks" class="library-track-list hidden"></ul>
                     <div id="library-view-playlists" class="library-grid hidden"></div>
+
+                    <!-- Tidal Views -->
+                    <div id="tidal-view-search" class="library-grid hidden"></div>
+                    <div id="tidal-view-playlists" class="library-grid hidden"></div>
+                    <div id="tidal-view-albums" class="library-grid hidden"></div>
+                    <ul id="tidal-view-tracks" class="library-track-list hidden"></ul>
                     <div id="library-view-radio" class="library-list hidden">
                         <div class="add-radio-container">
                             <input type="text" id="radio-url-input"
