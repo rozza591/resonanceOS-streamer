@@ -460,7 +460,6 @@ io.on('connection', (socket) => {
     socket.emit('connectionStatus', { connected: clientReady });
     if (clientReady) { sendStatus(); sendOutputs(); sendQueue(); sendPlaylists(); }
 
-    // >>> START OF EDIT: Improved 'safe' wrapper to log errors
     const safe = async (fn, name) => {
         try {
             await fn();
@@ -473,7 +472,6 @@ io.on('connection', (socket) => {
             socket.emit('error', { message: e.message });
         }
     };
-    // <<< END OF EDIT
 
     socket.on('play', () => safe(() => sendMpdCommand('play'), 'play'));
     socket.on('pause', () => safe(() => sendMpdCommand('pause', [1]), 'pause'));
@@ -500,7 +498,7 @@ io.on('connection', (socket) => {
         socket.emit('songList', { album: album, songs: songs, metadata: meta });
     }, 'songs'));
 
-
+    // >>> START OF EDIT: Updated Atomic 'playTrack' with Country Code & Fallback Chain
     socket.on('playTrack', (data) => safe(async () => {
         console.log(`[Player] playTrack: ${data.uri} (clear: ${data.clear})`);
 
@@ -513,30 +511,59 @@ io.on('connection', (socket) => {
             console.log(`[Player] Resolving Tidal ID: ${id}`);
             const creds = await getTidalCredentials();
 
-            // >>> START OF EDIT: Detailed Tidal Fetch with Fallback logic
+            // Common params for stream request
+            const playbackParams = {
+                playbackmode: 'STREAM',
+                assetpresentation: 'FULL',
+                countryCode: creds.countryCode // Critical fix: Add country code
+            };
+
+            // Recursive fallback chain: HI_RES -> LOSSLESS -> HIGH -> LOW
             try {
+                // 1. Try HI_RES (Master)
                 const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                    params: { audioquality: 'HI_RES', playbackmode: 'STREAM', assetpresentation: 'FULL' },
+                    params: { ...playbackParams, audioquality: 'HI_RES' },
                     headers: getWebHeaders(creds)
                 });
                 urlToAdd = res.data.url;
-            } catch (e) {
-                console.error(`[Tidal] HI_RES failed, trying HIGH quality...`);
-                const resRetry = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                    params: { audioquality: 'HIGH', playbackmode: 'STREAM', assetpresentation: 'FULL' },
-                    headers: getWebHeaders(creds)
-                });
-                urlToAdd = resRetry.data.url;
+            } catch (e1) {
+                try {
+                    console.log('[Tidal] HI_RES failed, trying LOSSLESS...');
+                    // 2. Try LOSSLESS (Hifi)
+                    const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
+                        params: { ...playbackParams, audioquality: 'LOSSLESS' },
+                        headers: getWebHeaders(creds)
+                    });
+                    urlToAdd = res.data.url;
+                } catch (e2) {
+                    try {
+                        console.log('[Tidal] LOSSLESS failed, trying HIGH...');
+                        // 3. Try HIGH (320kbps AAC)
+                        const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
+                            params: { ...playbackParams, audioquality: 'HIGH' },
+                            headers: getWebHeaders(creds)
+                        });
+                        urlToAdd = res.data.url;
+                    } catch (e3) {
+                        console.log('[Tidal] HIGH failed, trying LOW...');
+                        // 4. Try LOW (96kbps AAC) - Last resort
+                        const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
+                            params: { ...playbackParams, audioquality: 'LOW' },
+                            headers: getWebHeaders(creds)
+                        });
+                        urlToAdd = res.data.url;
+                    }
+                }
             }
-            // <<< END OF EDIT
 
-            if (!urlToAdd) throw new Error('Failed to resolve Tidal URL');
+            if (!urlToAdd) throw new Error('Failed to resolve Tidal URL (404/Unavailable)');
         }
 
         await sendMpdCommand('add', [urlToAdd]);
         await sendMpdCommand('play');
 
     }, 'playTrack'));
+    // <<< END OF EDIT
 
     socket.on('addToQueue', (uri) => safe(async () => {
         if (uri.includes('tidal') || /^\d+$/.test(uri)) {
