@@ -313,6 +313,15 @@ app.get('/auth/qobuz/callback', async (req, res) => {
 
 // --- Tidal API Proxy Routes (MIGRATED TO OPEN API) ---
 
+// Helper to decode JWT (Access Token) locally to get User ID
+function parseJwt(token) {
+    try {
+        return JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    } catch (e) {
+        return null;
+    }
+}
+
 async function getTidalToken() {
     return new Promise((resolve, reject) => {
         db.get("SELECT token FROM services WHERE service = 'tidal'", (err, row) => {
@@ -324,28 +333,48 @@ async function getTidalToken() {
 }
 
 async function getTidalSession(token) {
+    // Default fallback
+    let userId = null;
+    let countryCode = 'US';
+
     try {
-        // 1. Use Open API User Info endpoint instead of Legacy Sessions
-        console.log('[Tidal] Fetching user info from Open API...');
-        const userRes = await axios.get('https://openapi.tidal.com/users/me', {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Accept': 'application/vnd.tidal.v1+json'
-            }
-        });
+        // 1. Extract User ID from JWT Token (avoiding API call for ID)
+        const decoded = parseJwt(token);
+        if (decoded && (decoded.uid || decoded.sub)) {
+            userId = decoded.uid || decoded.sub;
+            console.log(`[Tidal] Extracted User ID from token: ${userId}`);
+        } else {
+            console.warn('[Tidal] Could not extract User ID from token.');
+        }
 
-        console.log('[Tidal] User Info:', JSON.stringify(userRes.data, null, 2));
+        // 2. Fetch User Info using the extracted ID (if available) to get Country Code
+        // Note: 'users/me' endpoint is unreliable on Open API, so we use ID.
+        if (userId) {
+            const endpoint = `https://openapi.tidal.com/users/${userId}`;
+            console.log(`[Tidal] Fetching user info from ${endpoint}...`);
 
-        return {
-            userId: userRes.data.id, // Open API returns 'id', we map to 'userId' for internal consistency
-            countryCode: userRes.data.countryCode || 'US'
-        };
+            const userRes = await axios.get(endpoint, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.tidal.v1+json'
+                }
+            });
+
+            countryCode = userRes.data.countryCode || 'US';
+            console.log(`[Tidal] User Country: ${countryCode}`);
+        } else {
+            console.warn('[Tidal] No User ID available, defaulting to US country code.');
+        }
 
     } catch (error) {
-        console.error('[Tidal] Failed to get user info:', error.message);
-        if (error.response) console.error('[Tidal] User Info Error Data:', error.response.data);
-        throw error;
+        console.warn(`[Tidal] Failed to get full user info: ${error.message}`);
+        // We do NOT throw here. We return the defaults so the search can proceed.
+        if (error.response && error.response.status === 404) {
+            console.warn('[Tidal] User endpoint 404 (Not Found). Proceeding with default country.');
+        }
     }
+
+    return { userId, countryCode };
 }
 
 app.get('/api/tidal/search', async (req, res) => {
@@ -359,8 +388,6 @@ app.get('/api/tidal/search', async (req, res) => {
         const countryCode = session.countryCode || 'US';
 
         // Map Legacy types (PLURAL) to Open API types (SINGULAR)
-        // Legacy: ARTISTS,ALBUMS,TRACKS,PLAYLISTS
-        // Open API: ARTIST,ALBUM,TRACK,PLAYLIST
         const typeMapping = {
             'ARTISTS': 'ARTIST',
             'ALBUMS': 'ALBUM',
@@ -376,7 +403,7 @@ app.get('/api/tidal/search', async (req, res) => {
             searchTypes = requestedTypes.map(t => typeMapping[t] || t); // Map or keep original if unknown
         }
 
-        // Open API expects types as a comma-separated string (e.g. "ARTIST,ALBUM")
+        // Open API expects types as a comma-separated string
         const typesParam = searchTypes.join(',');
 
         console.log(`[Tidal] Open API Search: "${query}" types="${typesParam}" country="${countryCode}"`);
@@ -412,9 +439,12 @@ app.get('/api/tidal/favorites/:type', async (req, res) => {
         const token = await getTidalToken();
         const session = await getTidalSession(token);
 
+        if (!session.userId) {
+            throw new Error('Cannot fetch favorites: User ID not found.');
+        }
+
         console.log(`[Tidal] Fetching favorites via Open API for user ${session.userId}, type: ${type}`);
 
-        // Open API Favorites Endpoint: https://openapi.tidal.com/users/{userId}/favorites/{type}
         const response = await axios.get(`https://openapi.tidal.com/users/${session.userId}/favorites/${type}`, {
             params: {
                 limit: 50,
