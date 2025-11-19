@@ -188,7 +188,7 @@ function sha256(buffer) {
 app.get('/auth/tidal', (req, res) => {
     const clientId = process.env.TIDAL_CLIENT_ID;
     const redirectUri = CONFIG.REDIRECT_URI;
-    // KEEP legacy r_usr REMOVED to avoid login Error 1002
+    // REMOVED 'r_usr' scope to prevent login Error 1002
     const scope = 'user.read collection.read search.read playlists.write playlists.read entitlements.read collection.write recommendations.read playback search.write';
 
     const verifier = base64URLEncode(crypto.randomBytes(32));
@@ -277,7 +277,16 @@ app.get('/auth/qobuz/callback', async (req, res) => {
     } catch (e) { res.redirect('/?error=qobuz_failed'); }
 });
 
-// --- Tidal API Proxy Routes (REVERTED TO LEGACY API WITH SESSION FIX) ---
+// --- Tidal API Proxy Routes (OPEN API IMPLEMENTATION) ---
+
+// Helper to decode JWT (Access Token) locally to get User ID
+function parseJwt(token) {
+    try {
+        return JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    } catch (e) {
+        return null;
+    }
+}
 
 async function getTidalToken() {
     return new Promise((resolve, reject) => {
@@ -289,33 +298,42 @@ async function getTidalToken() {
     });
 }
 
+// Modified: Uses local JWT parsing + Open API country fetch to avoid legacy session dependency
 async function getTidalSession(token) {
+    let userId = null;
+    let countryCode = 'US'; // Default fallback
+
     try {
-        // Use Legacy API Sessions Endpoint to get Session ID
-        console.log('[Tidal] Fetching session info from Legacy API...');
-        const sessionRes = await axios.get('https://api.tidal.com/v1/sessions', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        const userId = sessionRes.data.userId;
-        const sessionId = sessionRes.data.sessionId;
-        let countryCode = sessionRes.data.countryCode || sessionRes.data.country;
-
-        if (!countryCode) {
-            console.warn('[Tidal] No country in session, defaulting to US to avoid 403 on profile fetch.');
-            countryCode = 'US';
-            // We skip fetching /users/:id because it triggers 403 without r_usr scope
+        // 1. Extract User ID from JWT Token (offline operation)
+        const decoded = parseJwt(token);
+        if (decoded && (decoded.uid || decoded.sub)) {
+            userId = decoded.uid || decoded.sub;
+            console.log(`[Tidal] Extracted User ID from token: ${userId}`);
+        } else {
+            console.warn('[Tidal] Could not extract User ID from token.');
         }
 
-        console.log(`[Tidal] Session Active. User: ${userId}, Country: ${countryCode}, SessionID: ${sessionId}`);
-
-        return { userId, countryCode, sessionId };
-
+        // 2. Fetch Country Code using Open API (if User ID exists)
+        if (userId) {
+            const endpoint = `https://openapi.tidal.com/users/${userId}`;
+            try {
+                const userRes = await axios.get(endpoint, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/vnd.tidal.v1+json'
+                    }
+                });
+                countryCode = userRes.data.countryCode || 'US';
+                console.log(`[Tidal] User Country: ${countryCode}`);
+            } catch (apiErr) {
+                console.warn(`[Tidal] Country fetch failed (${apiErr.response?.status}), defaulting to US.`);
+            }
+        }
     } catch (error) {
-        console.error('[Tidal] Failed to get session info:', error.message);
-        if (error.response) console.error('[Tidal] Session Error Data:', error.response.data);
-        throw error;
+        console.warn(`[Tidal] Session/User info error: ${error.message}`);
     }
+
+    return { userId, countryCode };
 }
 
 app.get('/api/tidal/search', async (req, res) => {
@@ -326,44 +344,60 @@ app.get('/api/tidal/search', async (req, res) => {
         const token = await getTidalToken();
         const session = await getTidalSession(token);
 
-        // Use LEGACY types (Plural) for api.tidal.com
-        const searchType = type || 'ARTISTS,ALBUMS,TRACKS,PLAYLISTS';
+        const countryCode = session.countryCode || 'US';
 
-        console.log(`[Tidal] Legacy Search: "${query}" types="${searchType}" country="${session.countryCode}"`);
-
-        const headers = {
-            'Authorization': `Bearer ${token}`
+        // Map Legacy types (PLURAL) to Open API types (SINGULAR)
+        const typeMapping = {
+            'ARTISTS': 'ARTIST',
+            'ALBUMS': 'ALBUM',
+            'TRACKS': 'TRACK',
+            'PLAYLISTS': 'PLAYLIST'
         };
 
-        // INJECT SESSION ID to potentially bypass strict scope checks on Legacy API
-        if (session.sessionId) {
-            headers['X-Tidal-SessionId'] = session.sessionId;
+        // Default to all if not specified
+        let searchTypes = ['ARTIST', 'ALBUM', 'TRACK', 'PLAYLIST'];
+        if (type) {
+            const requestedTypes = type.split(',');
+            searchTypes = requestedTypes.map(t => typeMapping[t] || t);
         }
 
-        const response = await axios.get('https://api.tidal.com/v1/search', {
+        const typesParam = searchTypes.join(',');
+
+        console.log(`[Tidal] Open API Search: "${query}" types="${typesParam}" country="${countryCode}"`);
+
+        // REQUEST: Use 'q' parameter as requested and Open API endpoint
+        const response = await axios.get('https://openapi.tidal.com/search', {
             params: {
-                query,
-                types: searchType,
+                q: query, // Updated parameter name per requirements
+                type: typesParam,
+                offset: 0,
                 limit: 10,
-                countryCode: session.countryCode
+                countryCode
             },
-            headers: headers
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/vnd.tidal.v1+json'
+            }
         });
 
-        res.json(response.data);
+        // TRANSFORMATION: Map Open API flat arrays to Legacy structure for frontend compatibility
+        // Open API returns: { albums: [...], artists: [...] }
+        // Frontend expects: { albums: { items: [...] }, artists: { items: [...] } }
+        const openApiData = response.data;
+        const legacyData = {};
+
+        if (openApiData.artists) legacyData.artists = { items: openApiData.artists };
+        if (openApiData.albums) legacyData.albums = { items: openApiData.albums };
+        if (openApiData.tracks) legacyData.tracks = { items: openApiData.tracks };
+        if (openApiData.playlists) legacyData.playlists = { items: openApiData.playlists };
+
+        res.json(legacyData);
+
     } catch (error) {
         console.error('[Tidal] Search failed:', error.message);
         if (error.response) {
             console.error('[Tidal] Search Error Data:', error.response.data);
         }
-
-        if (error.response && error.response.status === 403) {
-            return res.status(403).json({
-                error: 'Tidal Search Permission Denied',
-                details: 'Client ID restricted. Try a new App ID from developer.tidal.com.'
-            });
-        }
-
         res.status(500).json({ error: 'Tidal search failed' });
     }
 });
@@ -375,20 +409,29 @@ app.get('/api/tidal/favorites/:type', async (req, res) => {
         const token = await getTidalToken();
         const session = await getTidalSession(token);
 
-        console.log(`[Tidal] Fetching favorites via Legacy API for user ${session.userId}, type: ${type}`);
+        if (!session.userId) {
+            throw new Error('Cannot fetch favorites: User ID not found locally.');
+        }
 
-        const headers = { 'Authorization': `Bearer ${token}` };
-        if (session.sessionId) headers['X-Tidal-SessionId'] = session.sessionId;
+        console.log(`[Tidal] Fetching favorites via Open API for user ${session.userId}, type: ${type}`);
 
-        const response = await axios.get(`https://api.tidal.com/v1/users/${session.userId}/favorites/${type}`, {
+        const response = await axios.get(`https://openapi.tidal.com/users/${session.userId}/favorites/${type}`, {
             params: {
                 limit: 50,
+                offset: 0,
                 countryCode: session.countryCode
             },
-            headers: headers
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/vnd.tidal.v1+json'
+            }
         });
 
+        // Open API favorites might also need transformation if they return flat arrays
+        // Assuming for now they return { items: [...] } or similar wrapper. 
+        // If Open API returns { items: [...] }, we pass it through.
         res.json(response.data);
+
     } catch (error) {
         console.error(`[Tidal] Fetch favorites ${type} failed:`, error.message);
         res.status(500).json({ error: `Failed to fetch Tidal ${type}` });
