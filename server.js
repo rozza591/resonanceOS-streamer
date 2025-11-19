@@ -31,8 +31,8 @@ const CONFIG = {
     MAX_FILES: 50,
     RECONNECT_DELAY: 5000,
     COMMAND_TIMEOUT: 10000,
-    // Legacy Android Token (Supports User/Pass Login)
-    TIDAL_TOKEN: 'kgsOOmYk3IN5NuY8'
+    // Updated Legacy Token (Tidal Android - Known to work for direct login)
+    TIDAL_TOKEN: 'CzET4vdadNUFQ5HV'
 };
 
 // --- 3. Setup ---
@@ -158,8 +158,8 @@ app.post('/auth/tidal/login', async (req, res) => {
     console.log(`[Auth] Attempting Tidal login for: ${username}`);
 
     try {
-        // Generate a random Client Unique Key (16 hex chars)
-        const clientUniqueKey = crypto.randomBytes(8).toString('hex');
+        // Generate a random Client Unique Key (32 hex chars for better compatibility)
+        const clientUniqueKey = crypto.randomBytes(16).toString('hex');
 
         // Using the legacy "Android" login endpoint which supports user/pass
         const params = new URLSearchParams();
@@ -167,7 +167,7 @@ app.post('/auth/tidal/login', async (req, res) => {
         params.append('password', password);
         params.append('token', CONFIG.TIDAL_TOKEN);
         params.append('clientUniqueKey', clientUniqueKey);
-        params.append('version', '2.1.0'); // Mimic older app version
+        params.append('version', '2.26.0'); // Mimic slightly newer app version
 
         const response = await axios.post('https://api.tidal.com/v1/login/username', params, {
             headers: {
@@ -194,14 +194,20 @@ app.post('/auth/tidal/login', async (req, res) => {
         res.json({ success: true, message: 'Connected to Tidal' });
 
     } catch (error) {
-        const msg = error.response?.data?.userMessage || error.message;
-        console.error('[Auth] Tidal Login Failed:', msg);
+        // Enhanced Error Logging
+        const status = error.response?.status;
+        const errorData = error.response?.data;
+        const userMsg = errorData?.userMessage || error.message;
+        const subStatus = errorData?.subStatus;
 
-        // Specific error for reCAPTCHA or bad creds
-        if (msg.includes('recaptcha')) {
-            res.status(403).json({ error: 'Tidal requires a CAPTCHA. Please try again later or check credentials.' });
+        console.error(`[Auth] Tidal Login Failed (${status}): ${userMsg} (SubStatus: ${subStatus})`);
+
+        if (subStatus === 1002 || status === 403) {
+            res.status(403).json({ error: `Login Restricted. Tidal may require CAPTCHA or this token is blocked. (Code ${subStatus})` });
+        } else if (status === 401) {
+            res.status(401).json({ error: 'Invalid username or password.' });
         } else {
-            res.status(401).json({ error: `Login failed: ${msg}` });
+            res.status(500).json({ error: `Login failed: ${userMsg}` });
         }
     }
 });
