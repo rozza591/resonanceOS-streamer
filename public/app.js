@@ -1146,8 +1146,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // Refresh settings to show new status
         socket.emit('getServices');
     }
+
+    // Handle Errors
     if (urlParams.has('error')) {
-        showToast('Service login failed.', 'error');
+        const error = urlParams.get('error');
+        const desc = urlParams.get('desc');
+
+        let msg = 'Service login failed.';
+        if (error === 'access_denied') msg = 'Login cancelled by user.';
+        if (error === 'no_code') msg = 'No authorization code received.';
+        if (desc) msg += ` (${desc})`;
+
+        showToast(msg, 'error');
+        console.error('Auth Error:', error, desc);
+
         window.history.replaceState({}, document.title, "/");
     }
 

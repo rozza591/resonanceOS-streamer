@@ -176,8 +176,19 @@ app.get('/auth/tidal', (req, res) => {
 });
 
 app.get('/auth/tidal/callback', async (req, res) => {
-    const { code } = req.query;
-    if (!code) return res.redirect('/?error=auth_failed');
+    console.log('[Auth] Tidal callback received. Query params:', req.query); // <--- ADDED LOGGING
+
+    const { code, error, error_description } = req.query;
+
+    if (error) {
+        console.error(`[Auth] Tidal returned error: ${error} - ${error_description}`);
+        return res.redirect(`/?error=${encodeURIComponent(error)}&desc=${encodeURIComponent(error_description || '')}`);
+    }
+
+    if (!code) {
+        console.error('[Auth] No code received from Tidal.');
+        return res.redirect('/?error=no_code');
+    }
 
     const clientId = process.env.TIDAL_CLIENT_ID;
     const clientSecret = process.env.TIDAL_CLIENT_SECRET;
