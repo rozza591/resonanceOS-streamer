@@ -20,244 +20,67 @@
                         d="M12 18C15.31 18 18 15.31 18 12C18 8.69 15.31 6 12 6C8.69 6 6 8.69 6 12C6 15.31 8.69 18 12 18ZM12 8C14.21 8 16 9.79 16 12C16 14.21 14.21 16 12 16C9.79 16 8 14.21 8 12C8 9.79 9.79 8 12 8Z"
                         fill="#f97316" />
                 </svg>
-                <div class="logo-text">
-                    <span>ResonanceOS</span>
-                    <span class="logo-subtitle">High-resolution Audio Streamer</span>
-                </div>
+                <div class="logo-text"><span>ResonanceOS</span><span class="logo-subtitle">High-resolution
+                        Streamer</span></div>
             </div>
-            <div class="header-device">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                        d="M18 6H16C16 4.9 15.1 4 14 4C12.9 4 12 4.9 12 6H10C10 4.9 9.1 4 8 4C6.9 4 6 4.9 6 6H4C2.9 6 2 6.9 2 8V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V8C22 6.9 21.1 6 18 6Z"
-                        fill="#ccc" />
-                </svg>
-                <span id="header-device-name">USB Audio Device 1</span>
-            </div>
+            <div class="header-device"><span>USB Audio</span></div>
             <div class="header-actions">
-                <button id="btn-open-queue" class="icon-btn" title="Queue">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
+                <button id="btn-open-queue" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
                         <path d="M11 5h11M11 9h11M11 13h11M3 17h19M3 21h19M3 5h4v8H3z" />
-                    </svg>
-                </button>
-                <button id="btn-kiosk-mode" class="icon-btn" title="Kiosk Mode">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                        <line x1="8" y1="21" x2="16" y2="21" />
-                        <line x1="12" y1="17" x2="12" y2="21" />
-                    </svg>
-                </button>
-                <button id="btn-open-upload" class="icon-btn" title="Upload Music">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M9 16H15V10H19L12 3L5 10H9V16Z" fill="currentColor" />
-                    </svg>
-                </button>
-                <button id="btn-open-settings" class="icon-btn" title="Settings">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
+                    </svg></button>
+                <button id="btn-open-settings" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="3"></circle>
                         <path
-                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2 2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 .33-1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
                         </path>
-                    </svg>
-                </button>
-                <button id="btn-open-library" class="icon-btn" title="Library">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 3V21M3 12H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                    </svg>
-                </button>
+                    </svg></button>
+                <button id="btn-open-library" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 3V21M3 12H21" />
+                    </svg></button>
             </div>
         </header>
 
+        <!-- Main Player Area -->
         <main class="player-main">
-            <div class="album-art-container">
-                <img id="album-art" src="" alt="Album Art"
-                    onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%234a4a4a\'><path d=\'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z\'/></svg>'">
-            </div>
-
+            <div class="album-art-container"><img id="album-art" src="" alt="Album Art"></div>
             <div class="player-info">
                 <h1 id="player-title">No Track Playing</h1>
                 <h2 id="player-artist">Unknown Artist</h2>
                 <h3 id="player-album">Unknown Album</h3>
             </div>
-
-            <div class="visualizer">
-                <canvas id="visualizer-canvas"></canvas>
-            </div>
-
-            <div class="player-tech">
-                <div class="tech-box">
-                    <span class="tech-label">Format</span>
-                    <span id="tech-format" class="tech-value">--</span>
-                </div>
-                <div class="tech-box">
-                    <span class="tech-label">Sample Rate</span>
-                    <span id="tech-samplerate" class="tech-value">-- kHz</span>
-                </div>
-                <div class="tech-box">
-                    <span class="tech-label">Bit Depth</span>
-                    <span id="tech-bitdepth" class="tech-value">-- bit</span>
-                </div>
-            </div>
-
+            <div class="visualizer"><canvas id="visualizer-canvas"></canvas></div>
             <div class="player-controls">
                 <div class="seeker">
                     <span id="time-current">0:00</span>
                     <input id="seek-slider" type="range" min="0" max="100" value="0">
                     <span id="time-duration">0:00</span>
                 </div>
-
                 <div class="buttons-main">
-                    <button id="btn-prev" class="icon-btn">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M6 6H8V18H6V6ZM9.5 12L18 18V6L9.5 12Z" fill="#fff" />
-                        </svg>
-                    </button>
-                    <button id="btn-play-pause" class="icon-btn large play">
-                        <svg class="icon-play" width="28" height="28" viewBox="0 0 24 24" fill="none"
-                            xmlns="http://www.w3.org/2000/svg">
-                            <path d="M8 5V19L19 12L8 5Z" fill="#fff" />
-                        </svg>
-                        <svg class="icon-pause" width="28" height="28" viewBox="0 0 24 24" fill="none"
-                            xmlns="http://www.w3.org/2000/svg">
-                            <path d="M6 19H10V5H6V19ZM14 5V19H18V5H14Z" fill="#fff" />
-                        </svg>
-                    </button>
-                    <button id="btn-next" class="icon-btn">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M16 6H18V18H16V6ZM8 18V6L15.5 12L8 18Z" fill="#fff" />
-                        </svg>
-                    </button>
+                    <button id="btn-prev" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
+                            <path d="M6 6H8V18H6V6ZM9.5 12L18 18V6L9.5 12Z" />
+                        </svg></button>
+                    <button id="btn-play-pause" class="icon-btn large play"><svg class="icon-play" width="28"
+                            height="28" viewBox="0 0 24 24" fill="#fff">
+                            <path d="M8 5V19L19 12L8 5Z" />
+                        </svg><svg class="icon-pause" width="28" height="28" viewBox="0 0 24 24" fill="#fff">
+                            <path d="M6 19H10V5H6V19ZM14 5V19H18V5H14Z" />
+                        </svg></button>
+                    <button id="btn-next" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
+                            <path d="M16 6H18V18H16V6ZM8 18V6L15.5 12L8 18Z" />
+                        </svg></button>
                 </div>
             </div>
         </main>
-
         <footer class="app-footer">
-            <div class="footer-status">
-                <span class="status-light" id="status-light"></span>
-                <span id="status-text">Connecting...</span>
-                <span id="status-tooltip" class="status-tooltip"></span>
-            </div>
-            <div class="footer-stats">
-                <span id="stat-cpu">CPU: --%</span>
-                <span id="stat-buffer">Buffer: --</span>
-                <span id="stat-latency">Latency: --ms</span>
-            </div>
+            <div class="footer-status"><span class="status-light" id="status-light"></span><span
+                    id="status-text">Ready</span></div>
         </footer>
     </div>
 
-    <div id="queue-modal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <header class="modal-header">
-                <h2>Queue</h2>
-                <div class="header-buttons">
-                    <button id="btn-clear-queue" class="btn btn-secondary">Clear</button>
-                    <button id="btn-save-playlist" class="btn">Save as Playlist</button>
-                    <button id="btn-close-queue" class="icon-btn close-modal">&times;</button>
-                </div>
-            </header>
-            <div class="modal-body">
-                <ul id="queue-list" class="library-track-list"></ul>
-            </div>
-        </div>
-    </div>
-
-    <div id="library-modal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <header class="modal-header">
-                <h2 id="library-title">Library</h2>
-                <button id="btn-close-library" class="icon-btn close-modal">&times;</button>
-            </header>
-            <div class="modal-body">
-
-                <div class="library-header">
-                    <div class="library-source-selector">
-                        <button class="source-btn active" data-source="local">Local Music</button>
-                        <button class="source-btn" data-source="tidal">Tidal</button>
-                    </div>
-
-                    <button id="library-back-btn" class="icon-btn hidden" title="Back">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M20 11H7.83L13.42 5.41L12 4L4 12L12 20L13.41 18.59L7.83 13H20V11Z" fill="#fff" />
-                        </svg>
-                    </button>
-
-                    <div class="library-tabs" id="local-tabs">
-                        <button class="tab-btn active" data-tab="artists">Artists</button>
-                        <button class="tab-btn" data-tab="playlists">Playlists</button>
-                        <button class="tab-btn" data-tab="radio">Radio</button>
-                    </div>
-
-                    <div class="library-tabs hidden" id="tidal-tabs">
-                        <button class="tab-btn active" data-tab="tidal-search">Search</button>
-                        <button class="tab-btn" data-tab="tidal-playlists">My Playlists</button>
-                        <button class="tab-btn" data-tab="tidal-albums">My Albums</button>
-                        <button class="tab-btn" data-tab="tidal-tracks">My Tracks</button>
-                    </div>
-
-                    <div class="search-bar">
-                        <input type="text" id="library-search" placeholder="Filter...">
-                    </div>
-                </div>
-
-                <div class="spinner-container" id="library-spinner">
-                    <div class="spinner"></div>
-                </div>
-
-                <div class="library-view-container">
-                    <div id="library-album-info" class="hidden">
-                        <div class="album-info-header">
-                            <img id="library-album-art" src="" alt="Album Art" class="album-info-art">
-                            <div class="album-info-details">
-                                <h4 id="library-album-title">Album Title</h4>
-                                <h5 id="library-album-artist">Artist Name</h5>
-                                <span id="library-album-year" class="tag"></span>
-                                <button id="btn-fetch-metadata" class="btn btn-secondary">Get Online Info</button>
-                            </div>
-                        </div>
-                        <p id="library-album-description" class="album-info-description"></p>
-                    </div>
-
-                    <!-- Local Views -->
-                    <div id="library-view-artists" class="library-grid"></div>
-                    <div id="library-view-albums" class="library-grid hidden"></div>
-                    <ul id="library-view-tracks" class="library-track-list hidden"></ul>
-                    <div id="library-view-playlists" class="library-grid hidden"></div>
-
-                    <!-- Tidal Views -->
-                    <div id="tidal-view-search" class="library-grid hidden"></div>
-                    <div id="tidal-view-playlists" class="library-grid hidden"></div>
-                    <div id="tidal-view-albums" class="library-grid hidden"></div>
-                    <ul id="tidal-view-tracks" class="library-track-list hidden"></ul>
-                    <div id="library-view-radio" class="library-list hidden">
-                        <div class="add-radio-container">
-                            <input type="text" id="radio-url-input"
-                                placeholder="Stream URL (e.g. http://stream.bbc.co.uk/...)">
-                            <input type="text" id="radio-name-input" placeholder="Station Name">
-                            <button id="btn-add-radio" class="btn">Add Station</button>
-                        </div>
-                        <ul id="radio-list" class="library-track-list"></ul>
-                    </div>
-                    <div id="library-view-tidal" class="library-view hidden">
-                        <div class="service-browser-header">
-                            <button id="btn-tidal-home" class="btn-secondary btn-sm">Home</button>
-                            <span id="tidal-path">/</span>
-                        </div>
-                        <div id="tidal-list" class="device-list"></div>
-                    </div>
-                    <div id="library-view-qobuz" class="library-view hidden">
-                        <div class="service-browser-header">
-                            <button id="btn-qobuz-home" class="btn-secondary btn-sm">Home</button>
-                            <span id="qobuz-path">/</span>
-                        </div>
-                        <div id="qobuz-list" class="device-list"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
+    <!-- SETTINGS MODAL (MODIFIED FOR LOGIN) -->
     <div id="settings-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <header class="modal-header">
@@ -265,154 +88,127 @@
                 <button id="btn-close-settings" class="icon-btn close-modal">&times;</button>
             </header>
             <div class="modal-body">
-                <div class="spinner-container" id="settings-spinner">
-                    <div class="spinner"></div>
-                </div>
 
-                <section class="settings-section">
-                    <h3>USB Audio Output</h3>
-                    <div id="outputs-list" class="device-list"></div>
-                </section>
-
+                <!-- TIDAL LOGIN SECTION -->
                 <div class="settings-section">
                     <h3>Services</h3>
                     <div class="setting-item">
                         <label>Tidal</label>
-                        <div class="service-inputs">
-                            <div id="tidal-status" class="device-status available">Not Connected</div>
-                            <button id="btn-auth-tidal" class="btn btn-primary btn-sm">Login to Tidal</button>
+
+                        <!-- Disconnected State: Show Login Form -->
+                        <div id="tidal-login-form" class="service-login-form">
+                            <div class="input-group">
+                                <input type="text" id="tidal-username" placeholder="Email / Username">
+                                <input type="password" id="tidal-password" placeholder="Password">
+                            </div>
+                            <button id="btn-tidal-login" class="btn btn-primary">Log In</button>
                         </div>
-                    </div>
-                    <div class="setting-item">
-                        <label>Qobuz</label>
-                        <div class="service-inputs">
-                            <div id="qobuz-status" class="device-status available">Not Connected</div>
-                            <button id="btn-auth-qobuz" class="btn btn-primary btn-sm">Login to Qobuz</button>
+
+                        <!-- Connected State: Show Status & Logout -->
+                        <div id="tidal-connected-info" class="service-connected-info hidden">
+                            <div class="device-status connected">Connected</div>
+                            <button id="btn-tidal-logout" class="btn btn-danger btn-sm">Log Out</button>
                         </div>
                     </div>
                 </div>
+                <!-- End Tidal Section -->
 
-                <div class="settings-section">
-                    <h3>Appearance</h3>
-                    <div class="setting-item">
-                        <label for="theme-select">Theme</label>
-                        <select id="theme-select" class="theme-select">
-                            <option value="default">Resonance Dark (Default)</option>
-                            <option value="midnight">Midnight Blue</option>
-                            <option value="forest">Deep Forest</option>
-                            <option value="sunset">Sunset</option>
-                            <option value="amoled">AMOLED Black</option>
-                        </select>
-                    </div>
-                </div>
-
+                <!-- System Info -->
                 <section class="settings-section">
-                    <h3>System Information</h3>
+                    <h3>System</h3>
                     <div id="system-info" class="sys-info-grid">
                         <span>OS Version</span><span id="sys-os">--</span>
-                        <span>Kernel</span><span id="sys-kernel">--</span>
-                        <span>Audio Server</span><span id="sys-audio">--</span>
                         <span>CPU Load</span><span id="sys-cpu">--</span>
                     </div>
-                </section>
-                <section class="settings-section">
-                    <h3>System Actions</h3>
                     <button id="btn-rescan" class="btn">Rescan Library</button>
-                    <button id="btn-reboot" class="btn btn-danger">Reboot Device</button>
+                    <button id="btn-reboot" class="btn btn-danger">Reboot</button>
                 </section>
-
             </div>
         </div>
+    </div>
 
-        <div id="upload-modal" class="modal-overlay hidden">
-            <div class="modal-content">
-                <header class="modal-header">
-                    <h2>Upload Music</h2>
-                    <button id="btn-close-upload" class="icon-btn close-modal">&times;</button>
-                </header>
-                <div class="modal-body">
-                    <form id="upload-form" enctype="multipart/form-data">
-                        <label for="music-files-input" class="upload-drop-zone">
-                            <svg width="50" height="50" viewBox="0 0 24 24" fill="none"
-                                xmlns="http://www.w3.org/2000/svg" style="fill: var(--text-muted);">
-                                <path
-                                    d="M9 16H15V10H19L12 3L5 10H9V16ZM12 18C11.45 18 11 18.45 11 19C11 19.55 11.45 20 12 20C12.55 20 13 19.55 13 19C13 18.45 12.55 18 12 18ZM5 18H7C7 19.1 7.9 20 9 20H15C16.1 20 17 19.1 17 18H19C20.1 18 21 17.1 21 16V10H22.79C23.22 10 23.44 9.47 23.14 9.17L12.35 0.38C12.16 0.18 11.84 0.18 11.65 0.38L0.86 9.17C0.56 9.47 0.78 10 1.21 10H3V16C3 17.1 3.9 18 5 18Z"
-                                    fill="#888" />
-                            </svg>
-                            <span>Drag & drop audio files here, or click to select</span>
-                            <input type="file" id="music-files-input" name="musicFiles" multiple
-                                accept=".mp3,.flac,.m4a,.ogg,.wav,.opus">
-                        </label>
-                        <div class="default-meta-group">
-                            <input type="text" id="default-artist" placeholder="Default Artist (if tags missing)">
-                            <input type="text" id="default-album" placeholder="Default Album (if tags missing)">
-                        </div>
-                        <div class="file-list-container">
-                            <div id="file-list-items"></div>
-                            <div id="file-list-spinner" class="spinner-container hidden">
-                                <div class="spinner"></div>
-                            </div>
-                        </div>
-                        <div class="progress-bar-container hidden">
-                            <div class="progress-bar-text">Uploading... 0%</div>
-                            <div class="progress-bar">
-                                <div class="progress-bar-inner" style="width: 0%;"></div>
-                            </div>
-                        </div>
-                        <div class="upload-actions">
-                            <button type="button" id="btn-clear-files" class="btn btn-secondary">Clear</button>
-                            <button type="submit" id="btn-submit-upload" class="btn">Upload</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div id="reboot-confirm-modal" class="modal-overlay hidden">
-            <div class="modal-content" style="max-width: 450px; height: auto;">
-                <header class="modal-header">
-                    <h2>Confirm Reboot</h2>
-                    <button id="btn-close-reboot-confirm" class="icon-btn close-modal">&times;</button>
-                </header>
-                <div class="modal-body">
-                    <p style="margin-bottom: 1.5rem; line-height: 1.5;">Are you sure you want to reboot the device? This
-                        will disconnect all users and stop music playback.</p>
-                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-                        <button id="btn-cancel-reboot" class="btn">Cancel</button>
-                        <button id="btn-confirm-reboot" class="btn btn-danger">Confirm Reboot</button>
+    <!-- Library Modal (Keep as is but ensure IDs match app.js) -->
+    <div id="library-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2 id="library-title">Library</h2>
+                <button id="btn-close-library" class="icon-btn close-modal">&times;</button>
+            </header>
+            <div class="modal-body">
+                <div class="library-header">
+                    <div class="library-source-selector">
+                        <button class="source-btn active" data-source="local">Local</button>
+                        <button class="source-btn" data-source="tidal">Tidal</button>
                     </div>
+                    <!-- Tabs -->
+                    <div class="library-tabs" id="local-tabs">
+                        <button class="tab-btn active" data-tab="artists">Artists</button>
+                        <button class="tab-btn" data-tab="albums">Albums</button>
+                    </div>
+                    <div class="library-tabs hidden" id="tidal-tabs">
+                        <button class="tab-btn active" data-tab="tidal-search">Search</button>
+                    </div>
+                    <input type="text" id="library-search" placeholder="Search...">
+                </div>
+
+                <div class="library-view-container">
+                    <div id="library-view-artists" class="library-grid"></div>
+                    <div id="library-view-albums" class="library-grid hidden"></div>
+                    <ul id="library-view-tracks" class="library-track-list hidden"></ul>
+
+                    <!-- Tidal Views -->
+                    <div id="tidal-view-search" class="library-grid hidden"></div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div id="kiosk-mode" class="hidden">
-            <div class="kiosk-content">
-                <img id="kiosk-art" src="" alt="Album Art">
-                <div class="kiosk-info">
-                    <h1 id="kiosk-title">No Track Playing</h1>
-                    <h2 id="kiosk-artist">Unknown Artist</h2>
-                    <h3 id="kiosk-album">Unknown Album</h3>
-                </div>
-                <div class="kiosk-progress">
-                    <div id="kiosk-progress-bar"></div>
+    <!-- Upload Modal -->
+    <div id="upload-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2>Upload Music</h2><button id="btn-close-upload" class="icon-btn close-modal">&times;</button>
+            </header>
+            <div class="modal-body">
+                <form id="upload-form">
+                    <div class="upload-drop-zone"><span>Drag & Drop Files Here</span></div>
+                    <input type="file" id="music-files-input" multiple hidden>
+                    <div id="file-list-items"></div>
+                    <div class="progress-bar-container hidden">
+                        <div class="progress-bar-text"></div>
+                        <div class="progress-bar">
+                            <div class="progress-bar-inner"></div>
+                        </div>
+                    </div>
+                    <div class="upload-actions">
+                        <button type="button" id="btn-clear-files" class="btn btn-danger">Clear</button>
+                        <button type="submit" id="btn-submit-upload" class="btn btn-primary" disabled>Upload</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reboot Confirm Modal -->
+    <div id="reboot-confirm-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="height:auto;">
+            <header class="modal-header">
+                <h2>Confirm Reboot</h2><button id="btn-close-reboot-confirm"
+                    class="icon-btn close-modal">&times;</button>
+            </header>
+            <div class="modal-body">
+                <p>Are you sure you want to reboot?</p>
+                <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:1rem;">
+                    <button id="btn-cancel-reboot" class="btn">Cancel</button>
+                    <button id="btn-confirm-reboot" class="btn btn-danger">Reboot</button>
                 </div>
             </div>
-            <button id="btn-exit-kiosk" class="icon-btn">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-            </button>
         </div>
+    </div>
 
-        <div id="toast-container"></div>
-
-        <script type="module">
-            import * as mm from 'https://cdn.jsdelivr.net/npm/music-metadata@11.0.0/+esm';
-            window.musicMetadata = mm;
-        </script>
-
-        <script src="/socket.io/socket.io.js"></script>
-        <script src="app.js"></script>
+    <div id="toast-container"></div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
 </body>
 
 </html>
