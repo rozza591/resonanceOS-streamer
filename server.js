@@ -324,28 +324,52 @@ async function getTidalToken() {
 
 async function getTidalSession(token) {
     try {
-        // 1. Get Session to get User ID
+        // 1. Get Session to get User ID and potentially Country Code
+        console.log('[Tidal] Fetching session info...');
         const sessionRes = await axios.get('https://api.tidal.com/v1/sessions', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
+        console.log('[Tidal] Session Response:', JSON.stringify(sessionRes.data, null, 2));
+
         const userId = sessionRes.data.userId;
+        const sessionCountry = sessionRes.data.countryCode || sessionRes.data.country;
 
-        // 2. Get User Profile to get Country Code
-        const userRes = await axios.get(`https://api.tidal.com/v1/users/${userId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        // If session already has country code, use it and skip user profile call
+        if (sessionCountry) {
+            console.log(`[Tidal] Country code found in session: ${sessionCountry}`);
+            return {
+                ...sessionRes.data,
+                countryCode: sessionCountry
+            };
+        }
 
-        console.log('[Tidal] User Profile:', userRes.data); // DEBUG LOG
+        // 2. If no country in session, try to get User Profile (may fail if r_usr scope missing)
+        console.log('[Tidal] No country in session, attempting to fetch user profile...');
+        try {
+            const userRes = await axios.get(`https://api.tidal.com/v1/users/${userId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
 
-        // Combine data
-        return {
-            ...sessionRes.data,
-            countryCode: userRes.data.countryCode || 'US' // Fallback to US if still missing
-        };
+            console.log('[Tidal] User Profile:', userRes.data);
+
+            return {
+                ...sessionRes.data,
+                countryCode: userRes.data.countryCode || 'US'
+            };
+        } catch (userError) {
+            console.warn('[Tidal] User profile fetch failed (likely missing r_usr scope):', userError.message);
+            console.warn('[Tidal] Falling back to US country code');
+
+            // Fallback to US if we can't get user profile
+            return {
+                ...sessionRes.data,
+                countryCode: 'US'
+            };
+        }
     } catch (error) {
-        console.error('[Tidal] Failed to get session/user info:', error.message);
-        if (error.response) console.error('[Tidal] Session/User Error Data:', error.response.data);
+        console.error('[Tidal] Failed to get session info:', error.message);
+        if (error.response) console.error('[Tidal] Session Error Data:', error.response.data);
         throw error;
     }
 }
