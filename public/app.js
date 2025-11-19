@@ -731,13 +731,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <span class="track-duration">${formatTime(track?.duration || 0)}</span>
                 `;
-                // >>> START OF EDIT: Use 'playTrack' atomic event
                 li.addEventListener('click', () => {
                     socket.emit('playTrack', { uri: `tidal://track/${track.id}`, service: 'tidal', clear: true });
                     showToast(`Playing ${track.title}...`, 'info');
                     closeModal(libraryModal);
                 });
-                // <<< END OF EDIT
                 ul.appendChild(li);
             });
             tidalViewSearch.appendChild(ul);
@@ -859,13 +857,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <span class="track-duration">${formatTime(track.time)}</span>
             `;
-            // >>> START OF EDIT: Use 'playTrack' atomic event
             li.addEventListener('click', () => {
-                socket.emit('playTrack', { uri: track.file, service: 'local', clear: true });
-                showToast(`Playing ${track.title}...`, 'info');
+                socket.emit('clearQueue');
+                socket.emit('addToQueue', track.file);
+                socket.emit('play');
                 closeModal(libraryModal);
             });
-            // <<< END OF EDIT
             libraryViewTracks.appendChild(li);
         });
     });
@@ -928,6 +925,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sysCpu) sysCpu.textContent = `${info.cpuLoad}%`;
         if (settingsSpinner) settingsSpinner.classList.add('hidden');
     });
+
+    // >>> START OF EDIT: Added socket error listener
+    socket.on('error', (data) => {
+        console.error('Socket Error:', data);
+        showToast(data.message || 'Unknown error occurred', 'error');
+    });
+    // <<< END OF EDIT
 
     let visualizerRunning = false;
     let animFrame;

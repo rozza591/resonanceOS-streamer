@@ -211,21 +211,17 @@ app.post('/auth/tidal/session', async (req, res) => {
     try {
         console.log(`[Auth] Verifying manual session...`);
 
-        // Construct headers based on auth type
         const headers = accessToken
             ? { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
             : { 'X-Tidal-SessionId': sessionId, 'X-Tidal-Token': tokenToUse };
 
-        // Verify token by fetching user/session info.
         let finalUserId = userId;
 
         if (accessToken) {
-            // Fetch session info to get User ID from the token
             const sessionRes = await axios.get(`https://api.tidal.com/v1/sessions`, { headers });
             finalUserId = sessionRes.data.userId;
             if (!finalUserId) throw new Error('Could not retrieve User ID from Access Token');
         } else {
-            // Verify legacy session
             await axios.get(`https://api.tidal.com/v1/users/${userId}`, {
                 headers: headers,
                 params: { countryCode: countryCode || 'US' }
@@ -238,7 +234,7 @@ app.post('/auth/tidal/session', async (req, res) => {
             finalUserId,
             tokenToUse,
             'ManualUser',
-            accessToken // Save the bearer token
+            accessToken
         );
 
         console.log(`[Auth] Manual session saved for User: ${finalUserId}`);
@@ -274,7 +270,7 @@ async function getTidalCredentials() {
                 countryCode: row.country_code || 'US',
                 userId: row.user_id,
                 clientToken: row.client_token || CONFIG.TIDAL_TOKEN,
-                accessToken: row.token // Return bearer token
+                accessToken: row.token
             });
         });
     });
@@ -464,7 +460,20 @@ io.on('connection', (socket) => {
     socket.emit('connectionStatus', { connected: clientReady });
     if (clientReady) { sendStatus(); sendOutputs(); sendQueue(); sendPlaylists(); }
 
-    const safe = async (fn, name) => { try { await fn(); } catch (e) { socket.emit('error', { message: e.message }); } };
+    // >>> START OF EDIT: Improved 'safe' wrapper to log errors
+    const safe = async (fn, name) => {
+        try {
+            await fn();
+        } catch (e) {
+            console.error(`[Error] ${name}:`, e.message);
+            if (e.response) {
+                console.error(`[Error] API Status:`, e.response.status);
+                console.error(`[Error] API Data:`, JSON.stringify(e.response.data));
+            }
+            socket.emit('error', { message: e.message });
+        }
+    };
+    // <<< END OF EDIT
 
     socket.on('play', () => safe(() => sendMpdCommand('play'), 'play'));
     socket.on('pause', () => safe(() => sendMpdCommand('pause', [1]), 'pause'));
@@ -491,34 +500,39 @@ io.on('connection', (socket) => {
         socket.emit('songList', { album: album, songs: songs, metadata: meta });
     }, 'songs'));
 
-    // >>> START OF EDIT: Replaced separate 'addToQueue' and 'play' events with Atomic 'playTrack'
-    // Note: Kept 'addToQueue' for compatibility/just adding, but 'playTrack' is used for clicking items.
 
     socket.on('playTrack', (data) => safe(async () => {
-        // data: { uri: string, service: 'tidal'|'local', clear: boolean }
         console.log(`[Player] playTrack: ${data.uri} (clear: ${data.clear})`);
 
         if (data.clear) await sendMpdCommand('clear');
 
         let urlToAdd = data.uri;
 
-        // Resolve Tidal URL if needed
         if (data.service === 'tidal') {
             const id = data.uri.split('/').pop();
             console.log(`[Player] Resolving Tidal ID: ${id}`);
             const creds = await getTidalCredentials();
-            const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                params: { audioquality: 'HI_RES', playbackmode: 'STREAM', assetpresentation: 'FULL' },
-                headers: getWebHeaders(creds)
-            });
-            if (res.data.url) {
+
+            // >>> START OF EDIT: Detailed Tidal Fetch with Fallback logic
+            try {
+                const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
+                    params: { audioquality: 'HI_RES', playbackmode: 'STREAM', assetpresentation: 'FULL' },
+                    headers: getWebHeaders(creds)
+                });
                 urlToAdd = res.data.url;
-            } else {
-                throw new Error('Failed to resolve Tidal URL');
+            } catch (e) {
+                console.error(`[Tidal] HI_RES failed, trying HIGH quality...`);
+                const resRetry = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
+                    params: { audioquality: 'HIGH', playbackmode: 'STREAM', assetpresentation: 'FULL' },
+                    headers: getWebHeaders(creds)
+                });
+                urlToAdd = resRetry.data.url;
             }
+            // <<< END OF EDIT
+
+            if (!urlToAdd) throw new Error('Failed to resolve Tidal URL');
         }
 
-        // Atomic: Add THEN Play
         await sendMpdCommand('add', [urlToAdd]);
         await sendMpdCommand('play');
 
@@ -537,7 +551,6 @@ io.on('connection', (socket) => {
             await sendMpdCommand('add', [uri]);
         }
     }, 'add'));
-    // <<< END OF EDIT
 
     socket.on('removeFromQueue', (id) => safe(() => sendMpdCommand('deleteid', [id]), 'del'));
     socket.on('clearQueue', () => safe(() => sendMpdCommand('clear'), 'clear'));
