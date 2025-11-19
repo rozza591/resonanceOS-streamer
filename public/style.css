@@ -1,20 +1,17 @@
-/* --- 1. Variables and Global Setup --- */
 :root {
     --bg-main: #191919;
     --bg-modal: #2a2a2a;
     --surface-1: #2c2c2c;
     --surface-2: #3a3a3a;
-    --surface-selected: #4a4a4a;
     --text-primary: #ffffff;
     --text-secondary: #aaaaaa;
     --text-muted: #888888;
     --accent: #e0b050;
     --green: #22c55e;
     --red: #ef4444;
-    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --radius-md: 8px;
     --radius-lg: 16px;
-    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 * {
@@ -31,7 +28,6 @@ body {
     height: 100vh;
 }
 
-/* --- 2. App Layout --- */
 .app-container {
     display: grid;
     grid-template-rows: auto 1fr auto;
@@ -41,7 +37,6 @@ body {
     padding: 0 1.5rem;
 }
 
-/* --- 3. Header --- */
 .app-header {
     display: flex;
     align-items: center;
@@ -64,7 +59,6 @@ body {
 .logo-subtitle {
     font-size: 0.8rem;
     color: var(--text-muted);
-    font-weight: 400;
 }
 
 .header-device {
@@ -86,8 +80,8 @@ body {
     background: transparent;
     border: none;
     color: var(--text-secondary);
-    cursor: pointer;
     padding: 0.5rem;
+    cursor: pointer;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -99,7 +93,6 @@ body {
     color: var(--text-primary);
 }
 
-/* --- 4. Player --- */
 .player-main {
     display: flex;
     flex-direction: column;
@@ -111,8 +104,7 @@ body {
 
 .album-art-container {
     width: 100%;
-    max-width: 300px;
-    margin-bottom: 1.5rem;
+    max-width: 350px;
 }
 
 #album-art {
@@ -121,23 +113,16 @@ body {
     background: var(--surface-1);
     border-radius: var(--radius-lg);
     object-fit: cover;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .player-info h1 {
     font-size: 2rem;
-    margin-bottom: 0.5rem;
+    margin: 1rem 0 0.5rem;
 }
 
 .player-info h2 {
     font-size: 1.2rem;
     color: var(--text-secondary);
-    margin-bottom: 0.25rem;
-}
-
-.player-info h3 {
-    font-size: 1rem;
-    color: var(--text-muted);
 }
 
 .visualizer {
@@ -154,7 +139,7 @@ body {
 
 .player-controls {
     width: 100%;
-    max-width: 500px;
+    max-width: 600px;
 }
 
 .seeker {
@@ -178,7 +163,6 @@ input[type="range"]::-webkit-slider-thumb {
     height: 12px;
     background: var(--text-primary);
     border-radius: 50%;
-    cursor: pointer;
 }
 
 .buttons-main {
@@ -195,14 +179,6 @@ input[type="range"]::-webkit-slider-thumb {
     color: var(--bg-main);
 }
 
-.icon-btn.large svg {
-    fill: var(--bg-main);
-}
-
-.icon-btn.large:hover {
-    filter: brightness(1.1);
-}
-
 .icon-btn.play .icon-pause {
     display: none;
 }
@@ -215,7 +191,6 @@ input[type="range"]::-webkit-slider-thumb {
     display: none;
 }
 
-/* --- 5. Footer --- */
 .app-footer {
     border-top: 1px solid var(--surface-1);
     padding: 1rem 0;
@@ -232,8 +207,8 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .status-light {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: var(--red);
 }
@@ -242,7 +217,7 @@ input[type="range"]::-webkit-slider-thumb {
     background: var(--green);
 }
 
-/* --- 6. Modals --- */
+/* Modals */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -285,7 +260,7 @@ input[type="range"]::-webkit-slider-thumb {
     display: none !important;
 }
 
-/* --- 7. Library --- */
+/* Library */
 .library-header {
     display: flex;
     flex-direction: column;
@@ -293,7 +268,8 @@ input[type="range"]::-webkit-slider-thumb {
     margin-bottom: 1rem;
 }
 
-.library-source-selector {
+.library-source-selector,
+.library-tabs {
     display: flex;
     gap: 1rem;
 }
@@ -304,21 +280,14 @@ input[type="range"]::-webkit-slider-thumb {
     background: transparent;
     border: 1px solid var(--surface-1);
     color: var(--text-secondary);
-    border-radius: var(--radius-md);
     cursor: pointer;
+    border-radius: var(--radius-md);
 }
 
 .source-btn.active {
     background: var(--accent);
     color: var(--bg-main);
     border-color: var(--accent);
-}
-
-.library-tabs {
-    display: flex;
-    gap: 1rem;
-    border-bottom: 1px solid var(--surface-1);
-    padding-bottom: 0.5rem;
 }
 
 .tab-btn {
@@ -381,27 +350,11 @@ input[type="range"]::-webkit-slider-thumb {
     background: var(--surface-1);
 }
 
-.track-art {
-    width: 40px;
-    height: 40px;
-    border-radius: 4px;
-    background: #333;
-}
-
 .track-info {
     flex: 1;
 }
 
-.track-title {
-    font-weight: 500;
-}
-
-.track-artist {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-}
-
-/* --- 8. Settings & Forms --- */
+/* Settings */
 .settings-section {
     margin-bottom: 2rem;
 }
@@ -415,16 +368,31 @@ input[type="range"]::-webkit-slider-thumb {
     padding-bottom: 0.5rem;
 }
 
-.setting-item label {
-    display: block;
-    margin-bottom: 0.5rem;
+.auth-tabs {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--surface-1);
 }
 
-/* Login Form Specifics */
-.service-login-form {
+.auth-tab {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.5rem 0;
+    cursor: pointer;
+}
+
+.auth-tab.active {
+    color: var(--accent);
+    border-bottom: 2px solid var(--accent);
+    font-weight: 600;
+}
+
+.auth-form {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
     background: var(--surface-1);
     padding: 1.5rem;
     border-radius: var(--radius-md);
@@ -433,7 +401,7 @@ input[type="range"]::-webkit-slider-thumb {
 .input-group {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 
 .input-group input {
@@ -443,7 +411,6 @@ input[type="range"]::-webkit-slider-thumb {
     border: 1px solid var(--surface-2);
     border-radius: var(--radius-md);
     color: var(--text-primary);
-    font-size: 1rem;
 }
 
 .input-group input:focus {
@@ -469,11 +436,6 @@ input[type="range"]::-webkit-slider-thumb {
     color: white;
 }
 
-.btn-sm {
-    padding: 0.4rem 1rem;
-    font-size: 0.85rem;
-}
-
 .service-connected-info {
     display: flex;
     align-items: center;
@@ -489,28 +451,21 @@ input[type="range"]::-webkit-slider-thumb {
     font-weight: 600;
 }
 
-.sys-info-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+/* Upload */
+.upload-drop-zone {
+    padding: 2rem;
+    border: 2px dashed var(--surface-2);
+    text-align: center;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
 }
 
-.device-item {
-    padding: 1rem;
+.upload-file-item {
+    padding: 0.5rem;
     background: var(--surface-1);
     margin-bottom: 0.5rem;
-    border-radius: var(--radius-md);
-    display: flex;
-    justify-content: space-between;
-    cursor: pointer;
 }
 
-.device-item.connected {
-    border-left: 4px solid var(--green);
-}
-
-/* --- 9. Toast --- */
 #toast-container {
     position: fixed;
     top: 20px;
@@ -523,21 +478,7 @@ input[type="range"]::-webkit-slider-thumb {
     padding: 1rem;
     margin-bottom: 0.5rem;
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow);
     animation: slideIn 0.3s ease;
-}
-
-.toast-success {
-    border-left: 4px solid var(--green);
-}
-
-.toast-error {
-    border-left: 4px solid var(--red);
-}
-
-.toast.fade-out {
-    opacity: 0;
-    transition: opacity 0.5s;
 }
 
 @keyframes slideIn {
@@ -548,11 +489,4 @@ input[type="range"]::-webkit-slider-thumb {
     to {
         transform: translateX(0);
     }
-}
-
-/* --- 10. Spinner --- */
-.spinner-container {
-    display: flex;
-    justify-content: center;
-    padding: 2rem;
 }

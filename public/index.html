@@ -1,49 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>ResonanceOS</title>
     <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
     <div class="app-container">
         <header class="app-header">
             <div class="logo">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                        d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z"
-                        fill="#fff" />
-                    <path
-                        d="M12 18C15.31 18 18 15.31 18 12C18 8.69 15.31 6 12 6C8.69 6 6 8.69 6 12C6 15.31 8.69 18 12 18ZM12 8C14.21 8 16 9.79 16 12C16 14.21 14.21 16 12 16C9.79 16 8 14.21 8 12C8 9.79 9.79 8 12 8Z"
-                        fill="#f97316" />
+                     <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="#fff"/>
+                     <path d="M12 18C15.31 18 18 15.31 18 12C18 8.69 15.31 6 12 6C8.69 6 6 8.69 6 12C6 15.31 8.69 18 12 18ZM12 8C14.21 8 16 9.79 16 12C16 14.21 14.21 16 12 16C9.79 16 8 14.21 8 12C8 9.79 9.79 8 12 8Z" fill="#f97316"/>
                 </svg>
-                <div class="logo-text"><span>ResonanceOS</span><span class="logo-subtitle">High-resolution
-                        Streamer</span></div>
+                <div class="logo-text"><span>ResonanceOS</span><span class="logo-subtitle">High-resolution Streamer</span></div>
             </div>
             <div class="header-device"><span>USB Audio</span></div>
             <div class="header-actions">
-                <button id="btn-open-queue" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2">
-                        <path d="M11 5h11M11 9h11M11 13h11M3 17h19M3 21h19M3 5h4v8H3z" />
-                    </svg></button>
-                <button id="btn-open-settings" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path
-                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2 2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 .33-1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
-                        </path>
-                    </svg></button>
-                <button id="btn-open-library" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 3V21M3 12H21" />
-                    </svg></button>
+                <button id="btn-open-queue" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5h11M11 9h11M11 13h11M3 17h19M3 21h19M3 5h4v8H3z"/></svg></button>
+                <button id="btn-open-settings" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2 2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+                <button id="btn-open-library" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3V21M3 12H21"/></svg></button>
             </div>
         </header>
 
-        <!-- Main Player Area -->
         <main class="player-main">
             <div class="album-art-container"><img id="album-art" src="" alt="Album Art"></div>
             <div class="player-info">
@@ -59,28 +39,17 @@
                     <span id="time-duration">0:00</span>
                 </div>
                 <div class="buttons-main">
-                    <button id="btn-prev" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
-                            <path d="M6 6H8V18H6V6ZM9.5 12L18 18V6L9.5 12Z" />
-                        </svg></button>
-                    <button id="btn-play-pause" class="icon-btn large play"><svg class="icon-play" width="28"
-                            height="28" viewBox="0 0 24 24" fill="#fff">
-                            <path d="M8 5V19L19 12L8 5Z" />
-                        </svg><svg class="icon-pause" width="28" height="28" viewBox="0 0 24 24" fill="#fff">
-                            <path d="M6 19H10V5H6V19ZM14 5V19H18V5H14Z" />
-                        </svg></button>
-                    <button id="btn-next" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
-                            <path d="M16 6H18V18H16V6ZM8 18V6L15.5 12L8 18Z" />
-                        </svg></button>
+                    <button id="btn-prev" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M6 6H8V18H6V6ZM9.5 12L18 18V6L9.5 12Z"/></svg></button>
+                    <button id="btn-play-pause" class="icon-btn large play"><svg class="icon-play" width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M8 5V19L19 12L8 5Z"/></svg><svg class="icon-pause" width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M6 19H10V5H6V19ZM14 5V19H18V5H14Z"/></svg></button>
+                    <button id="btn-next" class="icon-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M16 6H18V18H16V6ZM8 18V6L15.5 12L8 18Z"/></svg></button>
                 </div>
             </div>
         </main>
         <footer class="app-footer">
-            <div class="footer-status"><span class="status-light" id="status-light"></span><span
-                    id="status-text">Ready</span></div>
+             <div class="footer-status"><span class="status-light" id="status-light"></span><span id="status-text">Ready</span></div>
         </footer>
     </div>
 
-    <!-- SETTINGS MODAL (MODIFIED FOR LOGIN) -->
     <div id="settings-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <header class="modal-header">
@@ -88,32 +57,38 @@
                 <button id="btn-close-settings" class="icon-btn close-modal">&times;</button>
             </header>
             <div class="modal-body">
-
-                <!-- TIDAL LOGIN SECTION -->
                 <div class="settings-section">
                     <h3>Services</h3>
                     <div class="setting-item">
                         <label>Tidal</label>
-
-                        <!-- Disconnected State: Show Login Form -->
-                        <div id="tidal-login-form" class="service-login-form">
-                            <div class="input-group">
-                                <input type="text" id="tidal-username" placeholder="Email / Username">
-                                <input type="password" id="tidal-password" placeholder="Password">
+                        <div id="tidal-login-container">
+                            <div class="auth-tabs">
+                                <button class="auth-tab active" data-target="auto">Auto Login</button>
+                                <button class="auth-tab" data-target="manual">Manual Session</button>
                             </div>
-                            <button id="btn-tidal-login" class="btn btn-primary">Log In</button>
+                            <div id="auth-auto" class="auth-form">
+                                <div class="input-group">
+                                    <input type="text" id="tidal-username" placeholder="Email / Username">
+                                    <input type="password" id="tidal-password" placeholder="Password">
+                                </div>
+                                <button id="btn-tidal-login" class="btn btn-primary">Log In</button>
+                            </div>
+                            <div id="auth-manual" class="auth-form hidden">
+                                <div class="input-group">
+                                    <input type="text" id="tidal-session-id" placeholder="Session ID (X-Tidal-SessionId)">
+                                    <input type="text" id="tidal-user-id" placeholder="User ID">
+                                    <input type="text" id="tidal-country-code" placeholder="Country Code (e.g. US)" value="US">
+                                </div>
+                                <p class="hint-text">Use this if Auto Login is blocked by CAPTCHA.</p>
+                                <button id="btn-tidal-manual" class="btn btn-primary">Save Session</button>
+                            </div>
                         </div>
-
-                        <!-- Connected State: Show Status & Logout -->
                         <div id="tidal-connected-info" class="service-connected-info hidden">
                             <div class="device-status connected">Connected</div>
                             <button id="btn-tidal-logout" class="btn btn-danger btn-sm">Log Out</button>
                         </div>
                     </div>
                 </div>
-                <!-- End Tidal Section -->
-
-                <!-- System Info -->
                 <section class="settings-section">
                     <h3>System</h3>
                     <div id="system-info" class="sys-info-grid">
@@ -127,7 +102,6 @@
         </div>
     </div>
 
-    <!-- Library Modal (Keep as is but ensure IDs match app.js) -->
     <div id="library-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <header class="modal-header">
@@ -140,7 +114,6 @@
                         <button class="source-btn active" data-source="local">Local</button>
                         <button class="source-btn" data-source="tidal">Tidal</button>
                     </div>
-                    <!-- Tabs -->
                     <div class="library-tabs" id="local-tabs">
                         <button class="tab-btn active" data-tab="artists">Artists</button>
                         <button class="tab-btn" data-tab="albums">Albums</button>
@@ -150,36 +123,24 @@
                     </div>
                     <input type="text" id="library-search" placeholder="Search...">
                 </div>
-
                 <div class="library-view-container">
                     <div id="library-view-artists" class="library-grid"></div>
                     <div id="library-view-albums" class="library-grid hidden"></div>
                     <ul id="library-view-tracks" class="library-track-list hidden"></ul>
-
-                    <!-- Tidal Views -->
                     <div id="tidal-view-search" class="library-grid hidden"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Upload Modal -->
     <div id="upload-modal" class="modal-overlay hidden">
         <div class="modal-content">
-            <header class="modal-header">
-                <h2>Upload Music</h2><button id="btn-close-upload" class="icon-btn close-modal">&times;</button>
-            </header>
+            <header class="modal-header"><h2>Upload Music</h2><button id="btn-close-upload" class="icon-btn close-modal">&times;</button></header>
             <div class="modal-body">
                 <form id="upload-form">
                     <div class="upload-drop-zone"><span>Drag & Drop Files Here</span></div>
                     <input type="file" id="music-files-input" multiple hidden>
                     <div id="file-list-items"></div>
-                    <div class="progress-bar-container hidden">
-                        <div class="progress-bar-text"></div>
-                        <div class="progress-bar">
-                            <div class="progress-bar-inner"></div>
-                        </div>
-                    </div>
                     <div class="upload-actions">
                         <button type="button" id="btn-clear-files" class="btn btn-danger">Clear</button>
                         <button type="submit" id="btn-submit-upload" class="btn btn-primary" disabled>Upload</button>
@@ -189,13 +150,9 @@
         </div>
     </div>
 
-    <!-- Reboot Confirm Modal -->
     <div id="reboot-confirm-modal" class="modal-overlay hidden">
         <div class="modal-content" style="height:auto;">
-            <header class="modal-header">
-                <h2>Confirm Reboot</h2><button id="btn-close-reboot-confirm"
-                    class="icon-btn close-modal">&times;</button>
-            </header>
+            <header class="modal-header"><h2>Confirm Reboot</h2><button id="btn-close-reboot-confirm" class="icon-btn close-modal">&times;</button></header>
             <div class="modal-body">
                 <p>Are you sure you want to reboot?</p>
                 <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:1rem;">
@@ -210,5 +167,4 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="app.js"></script>
 </body>
-
 </html>
