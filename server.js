@@ -148,6 +148,75 @@ app.post('/upload', uploadLimiter, upload.array('musicFiles'), async (req, res) 
 
 // --- 8. AUTH ROUTES ---
 
+// OAuth: Initiate Tidal OAuth Flow
+app.get('/auth/tidal', (req, res) => {
+    const authUrl = `https://login.tidal.com/authorize?response_type=code&client_id=${CONFIG.TIDAL_CLIENT_ID}&redirect_uri=${encodeURIComponent(CONFIG.REDIRECT_URI)}&scope=r_usr+w_usr`;
+    console.log('[Auth] Redirecting to Tidal OAuth:', authUrl);
+    res.redirect(authUrl);
+});
+
+// OAuth: Handle Tidal OAuth Callback
+app.get('/auth/tidal/callback', async (req, res) => {
+    const { code, error } = req.query;
+
+    if (error) {
+        console.error('[Auth] OAuth error:', error);
+        return res.redirect(`/?error=${encodeURIComponent(error)}`);
+    }
+
+    if (!code) {
+        return res.redirect('/?error=no_code');
+    }
+
+    try {
+        console.log('[Auth] Exchanging code for token...');
+
+        // Exchange authorization code for access token
+        const tokenResponse = await axios.post('https://auth.tidal.com/v1/oauth2/token',
+            new URLSearchParams({
+                grant_type: 'authorization_code',
+                code: code,
+                redirect_uri: CONFIG.REDIRECT_URI,
+                client_id: CONFIG.TIDAL_CLIENT_ID,
+                client_secret: CONFIG.TIDAL_CLIENT_SECRET
+            }),
+            {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            }
+        );
+
+        const { access_token, refresh_token, user_id } = tokenResponse.data;
+
+        // Get user info to retrieve country code
+        let countryCode = 'US';
+        try {
+            const userResponse = await axios.get(`https://api.tidal.com/v1/users/${user_id}`, {
+                headers: { 'Authorization': `Bearer ${access_token}` }
+            });
+            countryCode = userResponse.data.countryCode || 'US';
+        } catch (e) {
+            console.warn('[Auth] Could not fetch country code, using US');
+        }
+
+        // Save to database
+        await saveSessionToDB(
+            'oauth',
+            countryCode,
+            user_id,
+            CONFIG.TIDAL_CLIENT_ID,
+            'OAuth User',
+            access_token,
+            refresh_token
+        );
+
+        console.log('[Auth] OAuth successful for user:', user_id);
+        res.redirect('/?tidal=connected');
+    } catch (error) {
+        console.error('[Auth] Token exchange failed:', error.response?.data || error.message);
+        res.redirect(`/?error=${encodeURIComponent('oauth_failed')}`);
+    }
+});
+
 // A. Direct Login (User/Pass)
 app.post('/auth/tidal/login', async (req, res) => {
     const { username, password } = req.body;
@@ -261,7 +330,7 @@ app.post('/auth/tidal/session', async (req, res) => {
 });
 
 // DB Helper
-async function saveSessionToDB(sid, cc, uid, token, user, accessToken) {
+async function saveSessionToDB(sid, cc, uid, token, user, accessToken, refreshToken = null) {
     return new Promise((resolve, reject) => {
         db.run(
             `INSERT OR REPLACE INTO services (service, session_id, country_code, user_id, client_token, username, token) VALUES (?, ?, ?, ?, ?, ?, ?)`,
