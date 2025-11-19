@@ -1,5 +1,5 @@
 // --- 1. Imports (CommonJS) ---
-require('dotenv').config(); // <--- ADDED: Load .env variables
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -8,14 +8,12 @@ const { cmd } = mpd;
 const path = require('path');
 const multer = require('multer');
 const { exec } = require('child_process');
-const fs = require('fs').promises; // Use promises API
-const fsSync = require('fs'); // For sync operations where needed
+const fs = require('fs').promises;
+const fsSync = require('fs');
 const musicMetadata = require('music-metadata');
 const rateLimit = require('express-rate-limit');
-const helmet = require('helmet'); // ADDED: Restored missing import
-const os = require('os'); // ADDED: Restored missing import
-const crypto = require('crypto'); // ADDED for PKCE
-const session = require('express-session'); // ADDED for PKCE
+const helmet = require('helmet');
+const os = require('os');
 const axios = require('axios');
 const sqlite3 = require('sqlite3').verbose();
 const util = require('util');
@@ -27,14 +25,12 @@ const CONFIG = {
     MPD_HOST: process.env.MPD_HOST || 'localhost',
     MPD_PORT: process.env.MPD_PORT || 6600,
     MUSIC_DIR: process.env.MUSIC_DIR || '/var/lib/mpd/music',
-    // Force usage of local DB if path not set or invalid in .env
     DB_PATH: process.env.DB_PATH || path.join(__dirname, 'audiophile.db'),
-    // Use the exact Redirect URI from .env
-    REDIRECT_URI: process.env.REDIRECT_URI || 'http://localhost:3000/auth/tidal/callback',
     MAX_FILE_SIZE: 500 * 1024 * 1024, // 500MB
     MAX_FILES: 50,
     RECONNECT_DELAY: 5000,
-    COMMAND_TIMEOUT: 10000
+    COMMAND_TIMEOUT: 10000,
+    REDIRECT_URI: process.env.REDIRECT_URI || 'http://localhost:3000/auth/tidal/callback'
 };
 
 // --- 3. Setup ---
@@ -65,14 +61,13 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", "data:", "blob:", "https://www.theaudiodb.com", "https://resources.tidal.com"],
             mediaSrc: ["'self'"],
-            connectSrc: ["'self'", "ws:", "wss:", "https://www.theaudiodb.com", "https://api.tidal.com", "https://openapi.tidal.com", "*"],
+            connectSrc: ["'self'", "ws:", "wss:", "https://www.theaudiodb.com", "https://api.tidal.com", "*"],
             'upgrade-insecure-requests': null
         }
     }
 }));
 
 const uploadLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many uploads, please try again later.' });
-const apiLimiter = rateLimit({ windowMs: 1 * 60 * 1000, max: 100 });
 
 // --- 5. Configure File Uploads (Multer) ---
 const storage = multer.diskStorage({
@@ -115,15 +110,7 @@ const upload = multer({
 
 // --- 6. Serve Front-End & Music Library ---
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
-
-// ADDED: Session Middleware for PKCE
-app.use(session({
-    secret: 'resonance-secret-key', // In production, use a secure random string
-    resave: false,
-    saveUninitialized: true,
-    cookie: { secure: false } // Set to true if using HTTPS
-}));
+app.use(express.json()); // Required for parsing JSON bodies
 app.use('/music', express.static(CONFIG.MUSIC_DIR));
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'public', 'index.html')); });
 app.get('/health', (req, res) => { res.json({ status: clientReady ? 'healthy' : 'degraded', mpdConnected: clientReady, uptime: process.uptime() }); });
@@ -171,92 +158,39 @@ app.post('/upload', uploadLimiter, upload.array('musicFiles'), async (req, res) 
     }
 });
 
-// --- 8. Auth Routes (TIDAL & QOBUZ) ---
+// --- 8. AUTH ROUTES: TIDAL WEB API (No OAuth) ---
 
-function base64URLEncode(str) {
-    return str.toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '');
-}
+// Route to save Tidal Web Session Credentials
+// You must POST the credentials here after extracting them from the web browser.
+// Payload: { sessionId, countryCode, userId, clientToken }
+app.post('/auth/tidal/session', async (req, res) => {
+    const { sessionId, countryCode, userId, clientToken } = req.body;
 
-function sha256(buffer) {
-    return crypto.createHash('sha256').update(buffer).digest();
-}
-
-// TIDAL
-app.get('/auth/tidal', (req, res) => {
-    const clientId = process.env.TIDAL_CLIENT_ID;
-    const redirectUri = CONFIG.REDIRECT_URI;
-    // REMOVED 'r_usr' scope to prevent login Error 1002
-    const scope = 'user.read collection.read search.read playlists.write playlists.read entitlements.read collection.write recommendations.read playback search.write';
-
-    const verifier = base64URLEncode(crypto.randomBytes(32));
-    const challenge = base64URLEncode(sha256(verifier));
-
-    req.session.tidalCodeVerifier = verifier;
-
-    const authUrl = `https://login.tidal.com/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&code_challenge=${challenge}&code_challenge_method=S256`;
-
-    console.log('[Auth] Redirecting to Tidal with PKCE:', authUrl);
-    res.redirect(authUrl);
-});
-
-app.get('/auth/tidal/callback', async (req, res) => {
-    const { code, error, error_description } = req.query;
-
-    if (error) return res.redirect(`/?error=${encodeURIComponent(error)}&desc=${encodeURIComponent(error_description || '')}`);
-    if (!code) return res.redirect('/?error=no_code');
-
-    const codeVerifier = req.session.tidalCodeVerifier;
-    if (!codeVerifier) return res.redirect('/?error=session_expired&desc=Please try logging in again.');
-
-    const clientId = process.env.TIDAL_CLIENT_ID;
-    const clientSecret = process.env.TIDAL_CLIENT_SECRET;
-
-    if (!clientSecret || clientSecret.includes('*')) {
-        return res.status(500).send('<h1>Configuration Error</h1><p>Your TIDAL_CLIENT_SECRET in .env looks invalid.</p>');
+    if (!sessionId || !clientToken) {
+        return res.status(400).json({ error: 'Missing required Tidal Web credentials (sessionId, clientToken)' });
     }
 
-    console.log(`[Auth] Exchanging code for token using PKCE...`);
+    console.log(`[Tidal] Saving Web Session. User: ${userId}, Country: ${countryCode}`);
 
     try {
-        const params = new URLSearchParams();
-        params.append('grant_type', 'authorization_code');
-        params.append('code', code);
-        params.append('redirect_uri', CONFIG.REDIRECT_URI);
-        params.append('client_id', clientId);
-        params.append('code_verifier', codeVerifier);
-
-        const authHeader = 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-
-        const response = await axios.post('https://auth.tidal.com/v1/oauth2/token', params, {
-            headers: {
-                'Authorization': authHeader,
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-        });
-
-        const { access_token, refresh_token } = response.data;
-
         await new Promise((resolve, reject) => {
-            db.run(`INSERT OR REPLACE INTO services (service, token, password) VALUES (?, ?, ?)`,
-                ['tidal', access_token, refresh_token],
+            db.run(
+                `INSERT OR REPLACE INTO services 
+                (service, session_id, country_code, user_id, client_token) 
+                VALUES (?, ?, ?, ?, ?)`,
+                ['tidal', sessionId, countryCode || 'US', userId, clientToken],
                 (err) => (err ? reject(err) : resolve())
             );
         });
 
-        console.log('[Auth] Tidal login successful.');
-        res.redirect('/?status=tidal_connected');
-
-    } catch (error) {
-        const errDetails = error.response ? JSON.stringify(error.response.data, null, 2) : error.message;
-        console.error('[Auth] Token Exchange Failed:', errDetails);
-        res.status(500).send(`<body><h1>Tidal Login Failed</h1><pre>${errDetails}</pre></body>`);
+        res.json({ success: true, message: 'Tidal Web Session saved successfully' });
+    } catch (err) {
+        console.error('[Tidal] DB Error:', err);
+        res.status(500).json({ error: 'Failed to save session' });
     }
 });
 
-// QOBUZ
+// QOBUZ Auth
 app.get('/auth/qobuz', (req, res) => {
     const appId = process.env.QOBUZ_APP_ID;
     const host = new URL(CONFIG.REDIRECT_URI).origin;
@@ -277,168 +211,104 @@ app.get('/auth/qobuz/callback', async (req, res) => {
     } catch (e) { res.redirect('/?error=qobuz_failed'); }
 });
 
-// --- Tidal API Proxy Routes (OPEN API IMPLEMENTATION) ---
 
-// Helper to decode JWT (Access Token) locally to get User ID
-function parseJwt(token) {
-    try {
-        return JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    } catch (e) {
-        return null;
-    }
-}
+// --- 9. TIDAL WEB API HELPERS ---
 
-async function getTidalToken() {
+// Helper to retrieve stored Web API credentials
+async function getTidalCredentials() {
     return new Promise((resolve, reject) => {
-        db.get("SELECT token FROM services WHERE service = 'tidal'", (err, row) => {
+        db.get("SELECT session_id, country_code, user_id, client_token FROM services WHERE service = 'tidal'", (err, row) => {
             if (err) return reject(err);
-            if (!row || !row.token) return reject(new Error('Tidal not connected'));
-            resolve(row.token);
+            if (!row || !row.session_id || !row.client_token) {
+                return reject(new Error('Tidal Web credentials not found. Please login via /auth/tidal/session.'));
+            }
+            resolve({
+                sessionId: row.session_id,
+                countryCode: row.country_code || 'US',
+                userId: row.user_id,
+                clientToken: row.client_token
+            });
         });
     });
 }
 
-// Modified: Uses local JWT parsing + Open API country fetch to avoid legacy session dependency
-async function getTidalSession(token) {
-    let userId = null;
-    let countryCode = 'US'; // Default fallback
-
-    try {
-        // 1. Extract User ID from JWT Token (offline operation)
-        const decoded = parseJwt(token);
-        if (decoded && (decoded.uid || decoded.sub)) {
-            userId = decoded.uid || decoded.sub;
-            console.log(`[Tidal] Extracted User ID from token: ${userId}`);
-        } else {
-            console.warn('[Tidal] Could not extract User ID from token.');
-        }
-
-        // 2. Fetch Country Code using Open API (if User ID exists)
-        if (userId) {
-            const endpoint = `https://openapi.tidal.com/users/${userId}`;
-            try {
-                const userRes = await axios.get(endpoint, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/vnd.tidal.v1+json'
-                    }
-                });
-                countryCode = userRes.data.countryCode || 'US';
-                console.log(`[Tidal] User Country: ${countryCode}`);
-            } catch (apiErr) {
-                console.warn(`[Tidal] Country fetch failed (${apiErr.response?.status}), defaulting to US.`);
-            }
-        }
-    } catch (error) {
-        console.warn(`[Tidal] Session/User info error: ${error.message}`);
-    }
-
-    return { userId, countryCode };
+// Helper to get headers for Web API
+function getWebHeaders(creds) {
+    return {
+        'X-Tidal-SessionId': creds.sessionId,
+        'X-Tidal-Token': creds.clientToken,
+        // 'Origin': 'https://listen.tidal.com' // Sometimes required if API gets strict
+    };
 }
 
+// --- 10. TIDAL WEB API ROUTES ---
+
+// Search via Web API
 app.get('/api/tidal/search', async (req, res) => {
-    const { query, type } = req.query;
+    const { query, type, limit } = req.query;
     if (!query) return res.status(400).json({ error: 'Query required' });
 
     try {
-        const token = await getTidalToken();
-        const session = await getTidalSession(token);
+        const creds = await getTidalCredentials();
 
-        const countryCode = session.countryCode || 'US';
+        // Web API types: ARTISTS, ALBUMS, TRACKS, PLAYLISTS, VIDEOS
+        const searchTypes = type || 'ARTISTS,ALBUMS,TRACKS,PLAYLISTS';
 
-        // Map Legacy types (PLURAL) to Open API types (SINGULAR)
-        const typeMapping = {
-            'ARTISTS': 'ARTIST',
-            'ALBUMS': 'ALBUM',
-            'TRACKS': 'TRACK',
-            'PLAYLISTS': 'PLAYLIST'
-        };
+        console.log(`[Tidal Web] Searching for "${query}" (${searchTypes}) in ${creds.countryCode}`);
 
-        // Default to all if not specified
-        let searchTypes = ['ARTIST', 'ALBUM', 'TRACK', 'PLAYLIST'];
-        if (type) {
-            const requestedTypes = type.split(',');
-            searchTypes = requestedTypes.map(t => typeMapping[t] || t);
-        }
-
-        const typesParam = searchTypes.join(',');
-
-        console.log(`[Tidal] Open API Search: "${query}" types="${typesParam}" country="${countryCode}"`);
-
-        // REQUEST: Use 'q' parameter as requested and Open API endpoint
-        const response = await axios.get('https://openapi.tidal.com/v2/search', {
+        const response = await axios.get('https://api.tidal.com/v1/search', {
             params: {
-                q: query, // Updated parameter name per requirements
-                type: typesParam,
-                offset: 0,
-                limit: 10,
-                countryCode
+                query,
+                types: searchTypes,
+                limit: limit || 30,
+                countryCode: creds.countryCode
             },
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Accept': 'application/vnd.tidal.v1+json'
-            }
+            headers: getWebHeaders(creds)
         });
 
-        // TRANSFORMATION: Map Open API flat arrays to Legacy structure for frontend compatibility
-        // Open API returns: { albums: [...], artists: [...] }
-        // Frontend expects: { albums: { items: [...] }, artists: { items: [...] } }
-        const openApiData = response.data;
-        const legacyData = {};
-
-        if (openApiData.artists) legacyData.artists = { items: openApiData.artists };
-        if (openApiData.albums) legacyData.albums = { items: openApiData.albums };
-        if (openApiData.tracks) legacyData.tracks = { items: openApiData.tracks };
-        if (openApiData.playlists) legacyData.playlists = { items: openApiData.playlists };
-
-        res.json(legacyData);
+        res.json(response.data);
 
     } catch (error) {
-        console.error('[Tidal] Search failed:', error.message);
-        if (error.response) {
-            console.error('[Tidal] Search Error Data:', error.response.data);
-        }
+        console.error('[Tidal Web] Search failed:', error.message);
+        if (error.response) console.error('Data:', error.response.data);
         res.status(500).json({ error: 'Tidal search failed' });
     }
 });
 
-app.get('/api/tidal/favorites/:type', async (req, res) => {
-    const { type } = req.params; // playlists, albums, tracks
+// Fetch Stream URL (Hi-Res/Lossless)
+app.get('/api/tidal/stream/:id', async (req, res) => {
+    const trackId = req.params.id;
 
     try {
-        const token = await getTidalToken();
-        const session = await getTidalSession(token);
+        const creds = await getTidalCredentials();
+        console.log(`[Tidal Web] Fetching stream URL for track ${trackId}`);
 
-        if (!session.userId) {
-            throw new Error('Cannot fetch favorites: User ID not found locally.');
-        }
-
-        console.log(`[Tidal] Fetching favorites via Open API for user ${session.userId}, type: ${type}`);
-
-        const response = await axios.get(`https://openapi.tidal.com/users/${session.userId}/favorites/${type}`, {
+        // IMPORTANT: audioquality can be 'HI_RES', 'LOSSLESS', 'HIGH', 'LOW'
+        // 'HI_RES' usually returns FLAC/MQA if available to the account.
+        const response = await axios.get(`https://api.tidal.com/v1/tracks/${trackId}/url`, {
             params: {
-                limit: 50,
-                offset: 0,
-                countryCode: session.countryCode
+                audioquality: 'HI_RES',
+                playbackmode: 'STREAM',
+                assetpresentation: 'FULL'
             },
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Accept': 'application/vnd.tidal.v1+json'
-            }
+            headers: getWebHeaders(creds)
         });
 
-        // Open API favorites might also need transformation if they return flat arrays
-        // Assuming for now they return { items: [...] } or similar wrapper. 
-        // If Open API returns { items: [...] }, we pass it through.
-        res.json(response.data);
+        // Response structure: { url: "...", trackId: 123, ... }
+        if (response.data && response.data.url) {
+            res.json({ url: response.data.url, format: response.data.soundQuality });
+        } else {
+            res.status(404).json({ error: 'Stream URL not found in response' });
+        }
 
     } catch (error) {
-        console.error(`[Tidal] Fetch favorites ${type} failed:`, error.message);
-        res.status(500).json({ error: `Failed to fetch Tidal ${type}` });
+        console.error('[Tidal Web] Stream fetch failed:', error.message);
+        if (error.response) console.error('Data:', error.response.data);
+        res.status(500).json({ error: 'Stream fetch failed' });
     }
 });
 
-// --- 9. MPD Connection Management ---
+// --- 11. MPD Connection Management ---
 async function connectMPD() {
     try {
         console.log(`[MPD] Connecting to ${CONFIG.MPD_HOST}:${CONFIG.MPD_PORT}...`);
@@ -492,7 +362,7 @@ function handleMPDEvent(name) {
     }
 }
 
-// --- 10. Safe MPD Command Wrapper ---
+// --- 12. Safe MPD Command Wrapper ---
 async function sendMpdCommand(command, args = []) {
     if (!clientReady || !mpdClient) {
         throw new Error('MPD not connected');
@@ -512,7 +382,7 @@ async function sendMpdCommand(command, args = []) {
     }
 }
 
-// --- 11. Helper Functions ---
+// --- 13. Helper Functions ---
 const sendStatus = async () => {
     try {
         const statusStr = await sendMpdCommand('status');
@@ -605,7 +475,7 @@ const sendOutputs = async () => {
 const sendQueue = async () => { try { const queueStr = await sendMpdCommand('playlistinfo'); const queue = mpd.parseList(queueStr); io.emit('queueList', queue); } catch (err) { console.error(`[MPD] Error getting queue: ${err.message}`); } };
 const sendPlaylists = async () => { try { const playlistsStr = await sendMpdCommand('listplaylists'); const playlists = mpd.parseList(playlistsStr); io.emit('playlistsList', playlists); } catch (err) { console.error(`[MPD] Error getting playlists: ${err.message}`); } };
 
-// --- 12. Path Validation Helper ---
+// --- 14. Path Validation Helper ---
 const MUSIC_DIR_RESOLVED = path.resolve(CONFIG.MUSIC_DIR);
 function validateMusicPath(relativePath) {
     const fullPath = path.resolve(CONFIG.MUSIC_DIR, relativePath);
@@ -615,7 +485,7 @@ function validateMusicPath(relativePath) {
     return fullPath;
 }
 
-// --- 13. WebSocket Logic ---
+// --- 15. WebSocket Logic ---
 io.on('connection', (socket) => {
     console.log(`[Socket] User connected: ${socket.id}`);
     socket.emit('connectionStatus', { connected: clientReady });
@@ -662,7 +532,6 @@ io.on('connection', (socket) => {
 
     socket.on('getPlaylists', () => safeExecute(sendPlaylists, 'getPlaylists'));
 
-    // --- MODIFIED: 'getSongs' now also fetches from our DB ---
     socket.on('getSongs', ({ artist, album }) => safeExecute(async () => {
         if (!artist || !album) {
             throw new Error('Artist and album required');
@@ -687,7 +556,43 @@ io.on('connection', (socket) => {
     }, 'getSongs'));
 
     // --- Queue & Playlist Controls ---
-    socket.on('addToQueue', (songFile) => safeExecute(async () => { if (!songFile) throw new Error('Song file required'); await sendMpdCommand('add', [songFile]); }, 'addToQueue'));
+
+    // MODIFIED: Handle Tidal Streams in Queue
+    socket.on('addToQueue', (uri) => safeExecute(async () => {
+        if (!uri) throw new Error('URI required');
+
+        // Check if it's a Tidal Track URI (tidal://track/12345) or similar (12345)
+        if (uri.includes('tidal') || /^\d+$/.test(uri)) {
+            // Extract ID. If format is "tidal://track/123", extract 123.
+            // If raw number string, assume track ID.
+            const trackId = uri.split('/').pop();
+
+            console.log(`[Queue] Resolving Tidal track ID: ${trackId}`);
+
+            // Fetch the stream URL locally using Web API credentials
+            try {
+                const creds = await getTidalCredentials();
+                const response = await axios.get(`https://api.tidal.com/v1/tracks/${trackId}/url`, {
+                    params: { audioquality: 'HI_RES', playbackmode: 'STREAM', assetpresentation: 'FULL' },
+                    headers: getWebHeaders(creds)
+                });
+
+                if (response.data && response.data.url) {
+                    console.log(`[Queue] Adding stream URL to MPD`);
+                    await sendMpdCommand('add', [response.data.url]);
+                } else {
+                    throw new Error('No stream URL returned from Tidal');
+                }
+            } catch (err) {
+                console.error('[Queue] Failed to resolve Tidal stream:', err.message);
+                throw new Error('Could not resolve Tidal stream');
+            }
+        } else {
+            // Regular local file
+            await sendMpdCommand('add', [uri]);
+        }
+    }, 'addToQueue'));
+
     socket.on('removeFromQueue', (songId) => safeExecute(async () => { if (!songId) throw new Error('Song ID required'); await sendMpdCommand('deleteid', [songId]); }, 'removeFromQueue'));
     socket.on('clearQueue', () => safeExecute(async () => { await sendMpdCommand('clear'); }, 'clearQueue'));
     socket.on('loadPlaylist', (name) => safeExecute(async () => { if (!name) throw new Error('Playlist name required'); await sendMpdCommand('clear'); await sendMpdCommand('load', [name]); await sendMpdCommand('play'); }, 'loadPlaylist'));
@@ -718,28 +623,33 @@ io.on('connection', (socket) => {
     socket.on('deleteAlbum', ({ artist, album }) => safeExecute(async () => { if (!artist || !album) { throw new Error('Artist and album required'); } const songsStr = await sendMpdCommand('find', ['albumartist', artist, 'album', album]); const songs = mpd.parseList(songsStr); if (songs.length === 0) { throw new Error('Album not found'); } const albumRelPath = path.dirname(songs[0].file); const fullPath = validateMusicPath(albumRelPath); console.log(`[FS] Deleting directory: ${fullPath}`); await fs.rm(fullPath, { recursive: true, force: true }); await sendMpdCommand('update'); socket.emit('message', { text: 'Album deleted successfully' }); }, 'deleteAlbum'));
     socket.on('deleteArtist', (artist) => safeExecute(async () => { if (!artist) throw new Error('Artist name required'); const songsStr = await sendMpdCommand('find', ['albumartist', artist]); const songs = mpd.parseList(songsStr); if (songs.length === 0) { throw new Error('Artist not found'); } const artistRelPath = path.dirname(path.dirname(songs[0].file)); const fullPath = validateMusicPath(artistRelPath); console.log(`[FS] Deleting directory: ${fullPath}`); await fs.rm(fullPath, { recursive: true, force: true }); await sendMpdCommand('update'); socket.emit('message', { text: 'Artist deleted successfully' }); }, 'deleteArtist'));
 
-    // --- MODIFIED: 'getSystemInfo' handler ---
+    // --- System Info ---
     socket.on('getSystemInfo', () => safeExecute(async () => {
         const osVersion = `ResonanceOS 1.0`;
         const kernel = os.release();
-        const cpuLoad = (os.loadavg()[0] * 100 / os.cpus().length).toFixed(0); // <-- FIX: Removed '%'
+        const cpuLoad = (os.loadavg()[0] * 100 / os.cpus().length).toFixed(0);
         const audioServer = 'Pipewire 1.0.3';
         socket.emit('systemInfo', { osVersion, kernel, audioServer, cpuLoad });
     }, 'getSystemInfo'));
 
-    // --- Services Handlers ---
+    // --- Services Handlers (Updated for Web API) ---
     socket.on('getServices', () => safeExecute(async () => {
         db.all("SELECT * FROM services", [], (err, rows) => {
             if (err) throw err;
             const services = {};
             rows.forEach(row => {
-                services[row.service] = row;
+                services[row.service] = {
+                    // For Tidal, check if we have session_id and client_token
+                    token: row.service === 'tidal' ? row.client_token : row.token,
+                    connected: row.service === 'tidal' ? !!(row.session_id && row.client_token) : !!row.token
+                };
             });
             socket.emit('servicesList', services);
         });
     }, 'getServices'));
 
     socket.on('saveService', (data) => safeExecute(async () => {
+        // This handler handles Qobuz and generic services. Tidal Web API uses /auth/tidal/session route.
         const { service, username, password, token, appid } = data;
         if (!service) throw new Error('Service name required');
 
@@ -771,7 +681,7 @@ io.on('connection', (socket) => {
         socket.emit('getServices'); // Refresh UI
     }, 'logoutService'));
 
-    // --- ADDED: New Metadata Fetch Handler ---
+    // --- Metadata Fetch Handler ---
     socket.on('fetchMetadata', ({ artist, album }) => safeExecute(async () => {
         if (!artist || !album) throw new Error('Artist and Album required to fetch metadata');
 
@@ -845,7 +755,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// --- 14. Graceful Shutdown ---
+// --- 16. Graceful Shutdown ---
 const shutdown = async (signal) => {
     console.log(`\n[System] ${signal} received, shutting down gracefully...`);
     try {
@@ -861,7 +771,7 @@ const shutdown = async (signal) => {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-// --- 15. Main Server Startup ---
+// --- 17. Main Server Startup ---
 const init = async () => {
     try {
         // 1. Initialize Database
@@ -874,32 +784,27 @@ const init = async () => {
         });
 
         await new Promise((resolve, reject) => {
-            db.run(`
-                CREATE TABLE IF NOT EXISTS albums (
-                    artist TEXT NOT NULL,
-                    album TEXT NOT NULL,
-                    year INTEGER,
-                    description TEXT,
+            db.serialize(() => {
+                // 1. Create Albums Table
+                db.run(`CREATE TABLE IF NOT EXISTS albums (
+                    artist TEXT NOT NULL, album TEXT NOT NULL, year INTEGER, description TEXT,
                     PRIMARY KEY (artist, album)
-                )
-            `, (err) => {
-                if (err) return reject(err);
+                )`);
 
-                // Create Services Table
-                db.run(`
-                    CREATE TABLE IF NOT EXISTS services (
-                        service TEXT PRIMARY KEY,
-                        username TEXT,
-                        password TEXT,
-                        token TEXT,
-                        appid TEXT
-                    )
-                `, (err) => {
-                    if (err) {
-                        console.error(`[DB] Error creating services table: ${err.message}`);
-                        return reject(err);
+                // 2. Create/Migrate Services Table
+                db.run(`CREATE TABLE IF NOT EXISTS services (
+                    service TEXT PRIMARY KEY,
+                    username TEXT, password TEXT, token TEXT, appid TEXT,
+                    session_id TEXT, country_code TEXT, user_id TEXT, client_token TEXT
+                )`, (err) => {
+                    // Simple migration: If table exists but columns missing, add them.
+                    // Ignoring errors if columns already exist.
+                    if (!err) {
+                        const cols = ['session_id', 'country_code', 'user_id', 'client_token'];
+                        cols.forEach(col => {
+                            db.run(`ALTER TABLE services ADD COLUMN ${col} TEXT`, () => { });
+                        });
                     }
-                    console.log('[DB] Tables "albums" and "services" are ready.');
                     resolve();
                 });
             });
