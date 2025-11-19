@@ -324,14 +324,28 @@ async function getTidalToken() {
 
 async function getTidalSession(token) {
     try {
-        const response = await axios.get('https://api.tidal.com/v1/sessions', {
+        // 1. Get Session to get User ID
+        const sessionRes = await axios.get('https://api.tidal.com/v1/sessions', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        console.log('[Tidal] Session Data:', response.data); // DEBUG LOG
-        return response.data; // Contains userId, countryCode
+
+        const userId = sessionRes.data.userId;
+
+        // 2. Get User Profile to get Country Code
+        const userRes = await axios.get(`https://api.tidal.com/v1/users/${userId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        console.log('[Tidal] User Profile:', userRes.data); // DEBUG LOG
+
+        // Combine data
+        return {
+            ...sessionRes.data,
+            countryCode: userRes.data.countryCode || 'US' // Fallback to US if still missing
+        };
     } catch (error) {
-        console.error('[Tidal] Failed to get session:', error.message);
-        if (error.response) console.error('[Tidal] Session Error Data:', error.response.data);
+        console.error('[Tidal] Failed to get session/user info:', error.message);
+        if (error.response) console.error('[Tidal] Session/User Error Data:', error.response.data);
         throw error;
     }
 }
