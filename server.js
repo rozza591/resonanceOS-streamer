@@ -630,6 +630,20 @@ io.on('connection', (socket) => {
                     console.warn(`[Tidal] /streamUrl also failed:`, streamUrlErr.message);
                 }
             }
+
+            // FALLBACK 3: Use yt-dlp to extract URL from Tidal (if installed)
+            if (!resolvedUrl) {
+                console.log(`[Tidal] All API methods failed. Attempting yt-dlp extraction...`);
+                try {
+                    const { stdout } = await execAsync(`yt-dlp -f bestaudio --get-url "https://tidal.com/browse/track/${id}"`);
+                    resolvedUrl = stdout.trim();
+                    if (resolvedUrl) {
+                        console.log(`[Tidal] yt-dlp extraction successful`);
+                    }
+                } catch (ytdlpErr) {
+                    console.warn(`[Tidal] yt-dlp extraction failed (is yt-dlp installed?):`, ytdlpErr.message);
+                }
+            }
         } else {
             resolvedUrl = data.uri;
         }
