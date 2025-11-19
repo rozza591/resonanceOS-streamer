@@ -147,7 +147,6 @@
         </footer>
     </div>
 
-    <!-- Queue Modal -->
     <div id="queue-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <header class="modal-header">
@@ -248,60 +247,62 @@
             <div class="modal-body">
                 <div class="spinner-container" id="settings-spinner">
                     <div class="spinner"></div>
-
-                    <section class="settings-section">
-                        <h3>USB Audio Output</h3>
-                        <div id="outputs-list" class="device-list"></div>
-                    </section>
-                    <div class="settings-section">
-                        <h3>Services</h3>
-                        <div class="setting-item">
-                            <label>Tidal</label>
-                            <div class="service-inputs">
-                                <input type="text" id="tidal-token" placeholder="Token" class="input-field">
-                                <input type="password" id="tidal-password" placeholder="Password" class="input-field">
-                                <button id="btn-save-tidal" class="btn-primary btn-sm">Save</button>
-                            </div>
-                        </div>
-                        <div class="setting-item">
-                            <label>Qobuz</label>
-                            <div class="service-inputs">
-                                <input type="text" id="qobuz-username" placeholder="Username" class="input-field">
-                                <input type="password" id="qobuz-password" placeholder="Password" class="input-field">
-                                <input type="text" id="qobuz-appid" placeholder="App ID" class="input-field">
-                                <button id="btn-save-qobuz" class="btn-primary btn-sm">Save</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <h3>Appearance</h3>
-                        <div class="setting-item">
-                            <label for="theme-select">Theme</label>
-                            <select id="theme-select" class="theme-select">
-                                <option value="default">Resonance Dark (Default)</option>
-                                <option value="midnight">Midnight Blue</option>
-                                <option value="forest">Deep Forest</option>
-                                <option value="sunset">Sunset</option>
-                                <option value="amoled">AMOLED Black</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <section class="settings-section">
-                        <h3>System Information</h3>
-                        <div id="system-info" class="sys-info-grid">
-                            <span>OS Version</span><span id="sys-os">--</span>
-                            <span>Kernel</span><span id="sys-kernel">--</span>
-                            <span>Audio Server</span><span id="sys-audio">--</span>
-                            <span>CPU Load</span><span id="sys-cpu">--</span>
-                    </section>
-                    <section class="settings-section">
-                        <h3>System Actions</h3>
-                        <button id="btn-rescan" class="btn">Rescan Library</button>
-                        <button id="btn-reboot" class="btn btn-danger">Reboot Device</button>
-                    </section>
                 </div>
+
+                <section class="settings-section">
+                    <h3>USB Audio Output</h3>
+                    <div id="outputs-list" class="device-list"></div>
+                </section>
+                <div class="settings-section">
+                    <h3>Services</h3>
+                    <div class="setting-item">
+                        <label>Tidal</label>
+                        <div class="service-inputs">
+                            <input type="text" id="tidal-token" placeholder="Token" class="input-field">
+                            <input type="password" id="tidal-password" placeholder="Password" class="input-field">
+                            <button id="btn-save-tidal" class="btn-primary btn-sm">Save</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Qobuz</label>
+                        <div class="service-inputs">
+                            <input type="text" id="qobuz-username" placeholder="Username" class="input-field">
+                            <input type="password" id="qobuz-password" placeholder="Password" class="input-field">
+                            <input type="text" id="qobuz-appid" placeholder="App ID" class="input-field">
+                            <button id="btn-save-qobuz" class="btn-primary btn-sm">Save</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Appearance</h3>
+                    <div class="setting-item">
+                        <label for="theme-select">Theme</label>
+                        <select id="theme-select" class="theme-select">
+                            <option value="default">Resonance Dark (Default)</option>
+                            <option value="midnight">Midnight Blue</option>
+                            <option value="forest">Deep Forest</option>
+                            <option value="sunset">Sunset</option>
+                            <option value="amoled">AMOLED Black</option>
+                        </select>
+                    </div>
+                </div>
+
+                <section class="settings-section">
+                    <h3>System Information</h3>
+                    <div id="system-info" class="sys-info-grid">
+                        <span>OS Version</span><span id="sys-os">--</span>
+                        <span>Kernel</span><span id="sys-kernel">--</span>
+                        <span>Audio Server</span><span id="sys-audio">--</span>
+                        <span>CPU Load</span><span id="sys-cpu">--</span>
+                    </div>
+                </section>
+                <section class="settings-section">
+                    <h3>System Actions</h3>
+                    <button id="btn-rescan" class="btn">Rescan Library</button>
+                    <button id="btn-reboot" class="btn btn-danger">Reboot Device</button>
+                </section>
+
             </div>
         </div>
 
