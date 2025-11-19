@@ -59,7 +59,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'"], // <-- ADDED for inline styles
             imgSrc: ["'self'", "data:", "blob:", "https://www.theaudiodb.com"], // <-- ADDED for art
             mediaSrc: ["'self'"],
-            connectSrc: ["'self'", "ws:", "wss:", "https://www.theaudiodb.com"], // <-- ADDED for API
+            connectSrc: ["'self'", "ws:", "wss:", "https://www.theaudiodb.com", "*"], // <-- ADDED * for local network
             'upgrade-insecure-requests': null
         }
     }
