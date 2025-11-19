@@ -82,15 +82,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnTidalLogout = document.getElementById('btn-tidal-logout');
     const tidalUsername = document.getElementById('tidal-username');
     const tidalPassword = document.getElementById('tidal-password');
-    // >>> START OF EDIT: Fixed selector ID and added manual auth elements
-    const tidalLoginContainer = document.getElementById('tidal-login-container'); // Fixed ID from tidal-login-form
+
+    // >>> START OF EDIT: Fixed selector IDs for Manual Auth & Access Token
+    const tidalLoginContainer = document.getElementById('tidal-login-container');
     const tidalConnectedInfo = document.getElementById('tidal-connected-info');
 
-    // Manual Auth Elements
     const btnTidalManual = document.getElementById('btn-tidal-manual');
     const tidalSessionIdInput = document.getElementById('tidal-session-id');
     const tidalUserIdInput = document.getElementById('tidal-user-id');
     const tidalCountryCodeInput = document.getElementById('tidal-country-code');
+    // New Access Token Input
+    const tidalAccessTokenInput = document.getElementById('tidal-access-token');
+
     const authTabs = document.querySelectorAll('.auth-tab');
     const authAutoForm = document.getElementById('auth-auto');
     const authManualForm = document.getElementById('auth-manual');
@@ -205,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 5. Event Listeners ---
 
-    // >>> START OF EDIT: Added Auth Tab switching logic
+    // >>> START OF EDIT: Added Auth Tab Logic
     if (authTabs) {
         authTabs.forEach(tab => {
             tab.addEventListener('click', () => {
@@ -264,15 +267,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // >>> START OF EDIT: Added Manual Tidal Login Handler
+    // >>> START OF EDIT: Manual Tidal Login Handler (Bearer Token + Legacy)
     if (btnTidalManual) {
         btnTidalManual.addEventListener('click', async () => {
+            const accessToken = tidalAccessTokenInput ? tidalAccessTokenInput.value.trim() : '';
             const sessionId = tidalSessionIdInput.value.trim();
             const userId = tidalUserIdInput.value.trim();
             const countryCode = tidalCountryCodeInput.value.trim();
 
-            if (!sessionId || !userId) {
-                alert('Session ID and User ID are required.');
+            if (!accessToken && (!sessionId || !userId)) {
+                alert('Please provide either a Bearer Token OR (Session ID + User ID).');
                 return;
             }
 
@@ -283,13 +287,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch('/auth/tidal/session', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId, userId, countryCode })
+                    body: JSON.stringify({ sessionId, userId, countryCode, accessToken })
                 });
 
                 const data = await res.json();
 
                 if (res.ok) {
                     showToast('Manual Session Saved!', 'success');
+                    if (tidalAccessTokenInput) tidalAccessTokenInput.value = '';
                     tidalSessionIdInput.value = '';
                     tidalUserIdInput.value = '';
                     socket.emit('getServices');
@@ -815,7 +820,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('servicesList', (services) => {
-        // >>> START OF EDIT: Fixed selector to use container and updated logic
+        // >>> START OF EDIT: Fixed container selection
         if (services.tidal && services.tidal.connected) {
             if (tidalLoginContainer) tidalLoginContainer.classList.add('hidden');
             if (tidalConnectedInfo) tidalConnectedInfo.classList.remove('hidden');

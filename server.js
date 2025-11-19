@@ -176,7 +176,9 @@ app.post('/auth/tidal/login', async (req, res) => {
         const { sessionId, userId, countryCode } = response.data;
         if (!sessionId) throw new Error('Login succeeded but no Session ID returned.');
 
-        await saveSessionToDB(sessionId, countryCode, userId, CONFIG.TIDAL_TOKEN, username);
+        // >>> START OF EDIT: Pass null for accessToken
+        await saveSessionToDB(sessionId, countryCode, userId, CONFIG.TIDAL_TOKEN, username, null);
+        // <<< END OF EDIT
 
         console.log(`[Auth] Tidal login successful. User: ${userId}, Country: ${countryCode}`);
         res.json({ success: true, message: 'Connected to Tidal' });
@@ -201,66 +203,105 @@ app.post('/auth/tidal/login', async (req, res) => {
 
 // B. Manual Session Entry
 app.post('/auth/tidal/session', async (req, res) => {
-    const { sessionId, countryCode, userId, clientToken } = req.body;
+    // >>> START OF EDIT: Added accessToken support
+    const { sessionId, countryCode, userId, clientToken, accessToken } = req.body;
     const tokenToUse = clientToken || CONFIG.TIDAL_TOKEN;
 
-    if (!sessionId || !userId) {
-        return res.status(400).json({ error: 'Session ID and User ID are required.' });
+    if (!accessToken && (!sessionId || !userId)) {
+        return res.status(400).json({ error: 'Either (Session ID & User ID) OR Access Token is required.' });
     }
 
     try {
         console.log(`[Auth] Verifying manual session...`);
-        // Test the session by fetching user info
-        await axios.get(`https://api.tidal.com/v1/users/${userId}`, {
-            headers: { 'X-Tidal-SessionId': sessionId, 'X-Tidal-Token': tokenToUse },
-            params: { countryCode: countryCode || 'US' }
-        });
 
-        await saveSessionToDB(sessionId, countryCode || 'US', userId, tokenToUse, 'ManualUser');
-        console.log(`[Auth] Manual session saved for User: ${userId}`);
+        // Construct headers based on auth type
+        const headers = accessToken
+            ? { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+            : { 'X-Tidal-SessionId': sessionId, 'X-Tidal-Token': tokenToUse };
+
+        // Verify token by fetching user/session info.
+        let finalUserId = userId;
+
+        if (accessToken) {
+            // Fetch session info to get User ID from the token
+            const sessionRes = await axios.get(`https://api.tidal.com/v1/sessions`, { headers });
+            finalUserId = sessionRes.data.userId;
+            if (!finalUserId) throw new Error('Could not retrieve User ID from Access Token');
+        } else {
+            // Verify legacy session
+            await axios.get(`https://api.tidal.com/v1/users/${userId}`, {
+                headers: headers,
+                params: { countryCode: countryCode || 'US' }
+            });
+        }
+
+        await saveSessionToDB(
+            sessionId || 'bearer',
+            countryCode || 'US',
+            finalUserId,
+            tokenToUse,
+            'ManualUser',
+            accessToken // Save the bearer token
+        );
+
+        console.log(`[Auth] Manual session saved for User: ${finalUserId}`);
         res.json({ success: true, message: 'Manual session saved' });
     } catch (err) {
         console.error(`[Auth] Invalid session provided: ${err.message}`);
-        res.status(401).json({ error: 'The session ID provided is invalid or expired.' });
+        res.status(401).json({ error: 'The provided session/token is invalid or expired.' });
     }
+    // <<< END OF EDIT
 });
 
 // DB Helper
-async function saveSessionToDB(sid, cc, uid, token, user) {
+// >>> START OF EDIT: Added token param
+async function saveSessionToDB(sid, cc, uid, token, user, accessToken) {
     return new Promise((resolve, reject) => {
         db.run(
-            `INSERT OR REPLACE INTO services (service, session_id, country_code, user_id, client_token, username) VALUES (?, ?, ?, ?, ?, ?)`,
-            ['tidal', sid, cc, uid, token, user],
+            `INSERT OR REPLACE INTO services (service, session_id, country_code, user_id, client_token, username, token) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            ['tidal', sid, cc, uid, token, user, accessToken],
             (err) => err ? reject(err) : resolve()
         );
     });
 }
+// <<< END OF EDIT
 
 // --- 9. TIDAL API HELPERS ---
 
 async function getTidalCredentials() {
     return new Promise((resolve, reject) => {
-        db.get("SELECT session_id, country_code, user_id, client_token FROM services WHERE service = 'tidal'", (err, row) => {
+        // >>> START OF EDIT: Select 'token'
+        db.get("SELECT session_id, country_code, user_id, client_token, token FROM services WHERE service = 'tidal'", (err, row) => {
             if (err) return reject(err);
-            if (!row || !row.session_id) {
+            if (!row || (!row.session_id && !row.token)) {
                 return reject(new Error('Tidal not connected. Please log in via Settings.'));
             }
             resolve({
                 sessionId: row.session_id,
                 countryCode: row.country_code || 'US',
                 userId: row.user_id,
-                clientToken: row.client_token || CONFIG.TIDAL_TOKEN
+                clientToken: row.client_token || CONFIG.TIDAL_TOKEN,
+                accessToken: row.token // Return bearer token
             });
         });
+        // <<< END OF EDIT
     });
 }
 
+// >>> START OF EDIT: Prefer Bearer Header
 function getWebHeaders(creds) {
+    if (creds.accessToken) {
+        return {
+            'Authorization': `Bearer ${creds.accessToken}`,
+            'Content-Type': 'application/json'
+        };
+    }
     return {
         'X-Tidal-SessionId': creds.sessionId,
         'X-Tidal-Token': creds.clientToken,
     };
 }
+// <<< END OF EDIT
 
 // --- 10. TIDAL ROUTES ---
 
@@ -436,11 +477,15 @@ io.on('connection', (socket) => {
 
     // Services
     socket.on('getServices', () => safe(() => {
+        // >>> START OF EDIT: Check if 'token' exists
         db.all("SELECT * FROM services", [], (err, rows) => {
             const s = {};
-            rows.forEach(r => { s[r.service] = { connected: r.service === 'tidal' ? !!r.session_id : !!r.token }; });
+            rows.forEach(r => {
+                s[r.service] = { connected: r.service === 'tidal' ? !!(r.session_id || r.token) : !!r.token };
+            });
             socket.emit('servicesList', s);
         });
+        // <<< END OF EDIT
     }, 'services'));
 
     socket.on('logoutService', (svc) => safe(() => {
@@ -478,9 +523,11 @@ const init = async () => {
             db.run(`CREATE TABLE IF NOT EXISTS albums (artist TEXT, album TEXT, year INT, description TEXT, PRIMARY KEY(artist, album))`);
             db.run(`CREATE TABLE IF NOT EXISTS services (service TEXT PRIMARY KEY, session_id TEXT, country_code TEXT, user_id TEXT, client_token TEXT, username TEXT, token TEXT, password TEXT, appid TEXT)`,
                 (err) => {
+                    // >>> START OF EDIT: Add 'token' column if missing
                     if (!err) {
-                        ['session_id', 'country_code', 'user_id', 'client_token', 'username'].forEach(c => db.run(`ALTER TABLE services ADD COLUMN ${c} TEXT`, () => { }));
+                        ['session_id', 'country_code', 'user_id', 'client_token', 'username', 'token'].forEach(c => db.run(`ALTER TABLE services ADD COLUMN ${c} TEXT`, () => { }));
                     }
+                    // <<< END OF EDIT
                     r();
                 });
         }));
