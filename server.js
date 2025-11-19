@@ -63,9 +63,9 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
             scriptSrcAttr: ["'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", "data:", "blob:", "https://www.theaudiodb.com", "https://resources.tidal.com"], // Added tidal resources
+            imgSrc: ["'self'", "data:", "blob:", "https://www.theaudiodb.com", "https://resources.tidal.com"],
             mediaSrc: ["'self'"],
-            connectSrc: ["'self'", "ws:", "wss:", "https://www.theaudiodb.com", "https://api.tidal.com", "https://openapi.tidal.com", "*"], // Added tidal APIs
+            connectSrc: ["'self'", "ws:", "wss:", "https://www.theaudiodb.com", "https://api.tidal.com", "https://openapi.tidal.com", "*"],
             'upgrade-insecure-requests': null
         }
     }
@@ -173,7 +173,6 @@ app.post('/upload', uploadLimiter, upload.array('musicFiles'), async (req, res) 
 
 // --- 8. Auth Routes (TIDAL & QOBUZ) ---
 
-// Helper to generate PKCE Verifier and Challenge
 function base64URLEncode(str) {
     return str.toString('base64')
         .replace(/\+/g, '-')
@@ -189,14 +188,12 @@ function sha256(buffer) {
 app.get('/auth/tidal', (req, res) => {
     const clientId = process.env.TIDAL_CLIENT_ID;
     const redirectUri = CONFIG.REDIRECT_URI;
-    // FIXED: Removed 'r_usr' to solve Error 1002.
+    // KEEP legacy r_usr REMOVED to avoid login Error 1002
     const scope = 'user.read collection.read search.read playlists.write playlists.read entitlements.read collection.write recommendations.read playback search.write';
 
-    // Generate PKCE Verifier and Challenge
     const verifier = base64URLEncode(crypto.randomBytes(32));
     const challenge = base64URLEncode(sha256(verifier));
 
-    // Store verifier in session
     req.session.tidalCodeVerifier = verifier;
 
     const authUrl = `https://login.tidal.com/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&code_challenge=${challenge}&code_challenge_method=S256`;
@@ -206,32 +203,19 @@ app.get('/auth/tidal', (req, res) => {
 });
 
 app.get('/auth/tidal/callback', async (req, res) => {
-    console.log('[Auth] Tidal callback received. Query params:', req.query);
-
     const { code, error, error_description } = req.query;
 
-    if (error) {
-        console.error(`[Auth] Tidal returned error: ${error} - ${error_description}`);
-        return res.redirect(`/?error=${encodeURIComponent(error)}&desc=${encodeURIComponent(error_description || '')}`);
-    }
+    if (error) return res.redirect(`/?error=${encodeURIComponent(error)}&desc=${encodeURIComponent(error_description || '')}`);
+    if (!code) return res.redirect('/?error=no_code');
 
-    if (!code) {
-        console.error('[Auth] No code received from Tidal.');
-        return res.redirect('/?error=no_code');
-    }
-
-    // Retrieve Verifier from Session
     const codeVerifier = req.session.tidalCodeVerifier;
-    if (!codeVerifier) {
-        console.error('[Auth] No code verifier found in session. Session might have expired.');
-        return res.redirect('/?error=session_expired&desc=Please try logging in again.');
-    }
+    if (!codeVerifier) return res.redirect('/?error=session_expired&desc=Please try logging in again.');
 
     const clientId = process.env.TIDAL_CLIENT_ID;
     const clientSecret = process.env.TIDAL_CLIENT_SECRET;
 
     if (!clientSecret || clientSecret.includes('*')) {
-        return res.status(500).send('<h1>Configuration Error</h1><p>Your TIDAL_CLIENT_SECRET in .env looks invalid. Did you forget to replace the *omitted placeholder?</p>');
+        return res.status(500).send('<h1>Configuration Error</h1><p>Your TIDAL_CLIENT_SECRET in .env looks invalid.</p>');
     }
 
     console.log(`[Auth] Exchanging code for token using PKCE...`);
@@ -241,10 +225,9 @@ app.get('/auth/tidal/callback', async (req, res) => {
         params.append('grant_type', 'authorization_code');
         params.append('code', code);
         params.append('redirect_uri', CONFIG.REDIRECT_URI);
-        params.append('client_id', clientId); // Tidal sometimes requires client_id in body too
-        params.append('code_verifier', codeVerifier); // PKCE Verifier
+        params.append('client_id', clientId);
+        params.append('code_verifier', codeVerifier);
 
-        // Use Basic Auth Header
         const authHeader = 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
         const response = await axios.post('https://auth.tidal.com/v1/oauth2/token', params, {
@@ -269,24 +252,7 @@ app.get('/auth/tidal/callback', async (req, res) => {
     } catch (error) {
         const errDetails = error.response ? JSON.stringify(error.response.data, null, 2) : error.message;
         console.error('[Auth] Token Exchange Failed:', errDetails);
-
-        // PRINT ERROR TO SCREEN FOR DEBUGGING
-        res.status(500).send(`
-            <body style="font-family: sans-serif; padding: 2rem;">
-                <h1 style="color: red;">Tidal Login Failed</h1>
-                <p>The server could not exchange the authorization code for a token.</p>
-                <h3>Error Details:</h3>
-                <pre style="background: #f0f0f0; padding: 1rem; border-radius: 5px;">${errDetails}</pre>
-                <p><strong>Checklist:</strong></p>
-                <ul>
-                    <li>Is <code>TIDAL_CLIENT_SECRET</code> correct in .env?</li>
-                    <li>Does <code>REDIRECT_URI</code> in .env match the Tidal Dashboard exactly?</li>
-                    <li>Is your server time correct?</li>
-                </ul>
-                <br>
-                <a href="/">Back to App</a>
-            </body>
-        `);
+        res.status(500).send(`<body><h1>Tidal Login Failed</h1><pre>${errDetails}</pre></body>`);
     }
 });
 
@@ -311,16 +277,7 @@ app.get('/auth/qobuz/callback', async (req, res) => {
     } catch (e) { res.redirect('/?error=qobuz_failed'); }
 });
 
-// --- Tidal API Proxy Routes (MIGRATED TO OPEN API) ---
-
-// Helper to decode JWT (Access Token) locally to get User ID
-function parseJwt(token) {
-    try {
-        return JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    } catch (e) {
-        return null;
-    }
-}
+// --- Tidal API Proxy Routes (REVERTED TO LEGACY API WITH SESSION FIX) ---
 
 async function getTidalToken() {
     return new Promise((resolve, reject) => {
@@ -333,48 +290,32 @@ async function getTidalToken() {
 }
 
 async function getTidalSession(token) {
-    // Default fallback
-    let userId = null;
-    let countryCode = 'US';
-
     try {
-        // 1. Extract User ID from JWT Token (avoiding API call for ID)
-        const decoded = parseJwt(token);
-        if (decoded && (decoded.uid || decoded.sub)) {
-            userId = decoded.uid || decoded.sub;
-            console.log(`[Tidal] Extracted User ID from token: ${userId}`);
-        } else {
-            console.warn('[Tidal] Could not extract User ID from token.');
+        // Use Legacy API Sessions Endpoint to get Session ID
+        console.log('[Tidal] Fetching session info from Legacy API...');
+        const sessionRes = await axios.get('https://api.tidal.com/v1/sessions', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const userId = sessionRes.data.userId;
+        const sessionId = sessionRes.data.sessionId;
+        let countryCode = sessionRes.data.countryCode || sessionRes.data.country;
+
+        if (!countryCode) {
+            console.warn('[Tidal] No country in session, defaulting to US to avoid 403 on profile fetch.');
+            countryCode = 'US';
+            // We skip fetching /users/:id because it triggers 403 without r_usr scope
         }
 
-        // 2. Fetch User Info using the extracted ID (if available) to get Country Code
-        // Note: 'users/me' endpoint is unreliable on Open API, so we use ID.
-        if (userId) {
-            const endpoint = `https://openapi.tidal.com/users/${userId}`;
-            console.log(`[Tidal] Fetching user info from ${endpoint}...`);
+        console.log(`[Tidal] Session Active. User: ${userId}, Country: ${countryCode}, SessionID: ${sessionId}`);
 
-            const userRes = await axios.get(endpoint, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/vnd.tidal.v1+json'
-                }
-            });
-
-            countryCode = userRes.data.countryCode || 'US';
-            console.log(`[Tidal] User Country: ${countryCode}`);
-        } else {
-            console.warn('[Tidal] No User ID available, defaulting to US country code.');
-        }
+        return { userId, countryCode, sessionId };
 
     } catch (error) {
-        console.warn(`[Tidal] Failed to get full user info: ${error.message}`);
-        // We do NOT throw here. We return the defaults so the search can proceed.
-        if (error.response && error.response.status === 404) {
-            console.warn('[Tidal] User endpoint 404 (Not Found). Proceeding with default country.');
-        }
+        console.error('[Tidal] Failed to get session info:', error.message);
+        if (error.response) console.error('[Tidal] Session Error Data:', error.response.data);
+        throw error;
     }
-
-    return { userId, countryCode };
 }
 
 app.get('/api/tidal/search', async (req, res) => {
@@ -385,41 +326,28 @@ app.get('/api/tidal/search', async (req, res) => {
         const token = await getTidalToken();
         const session = await getTidalSession(token);
 
-        const countryCode = session.countryCode || 'US';
+        // Use LEGACY types (Plural) for api.tidal.com
+        const searchType = type || 'ARTISTS,ALBUMS,TRACKS,PLAYLISTS';
 
-        // Map Legacy types (PLURAL) to Open API types (SINGULAR)
-        const typeMapping = {
-            'ARTISTS': 'ARTIST',
-            'ALBUMS': 'ALBUM',
-            'TRACKS': 'TRACK',
-            'PLAYLISTS': 'PLAYLIST'
+        console.log(`[Tidal] Legacy Search: "${query}" types="${searchType}" country="${session.countryCode}"`);
+
+        const headers = {
+            'Authorization': `Bearer ${token}`
         };
 
-        // Default to all if not specified
-        let searchTypes = ['ARTIST', 'ALBUM', 'TRACK', 'PLAYLIST'];
-
-        if (type) {
-            const requestedTypes = type.split(',');
-            searchTypes = requestedTypes.map(t => typeMapping[t] || t); // Map or keep original if unknown
+        // INJECT SESSION ID to potentially bypass strict scope checks on Legacy API
+        if (session.sessionId) {
+            headers['X-Tidal-SessionId'] = session.sessionId;
         }
 
-        // Open API expects types as a comma-separated string
-        const typesParam = searchTypes.join(',');
-
-        console.log(`[Tidal] Open API Search: "${query}" types="${typesParam}" country="${countryCode}"`);
-
-        const response = await axios.get('https://openapi.tidal.com/search', {
+        const response = await axios.get('https://api.tidal.com/v1/search', {
             params: {
                 query,
-                type: typesParam,
-                offset: 0,
+                types: searchType,
                 limit: 10,
-                countryCode
+                countryCode: session.countryCode
             },
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Accept': 'application/vnd.tidal.v1+json'
-            }
+            headers: headers
         });
 
         res.json(response.data);
@@ -428,6 +356,14 @@ app.get('/api/tidal/search', async (req, res) => {
         if (error.response) {
             console.error('[Tidal] Search Error Data:', error.response.data);
         }
+
+        if (error.response && error.response.status === 403) {
+            return res.status(403).json({
+                error: 'Tidal Search Permission Denied',
+                details: 'Client ID restricted. Try a new App ID from developer.tidal.com.'
+            });
+        }
+
         res.status(500).json({ error: 'Tidal search failed' });
     }
 });
@@ -439,28 +375,22 @@ app.get('/api/tidal/favorites/:type', async (req, res) => {
         const token = await getTidalToken();
         const session = await getTidalSession(token);
 
-        if (!session.userId) {
-            throw new Error('Cannot fetch favorites: User ID not found.');
-        }
+        console.log(`[Tidal] Fetching favorites via Legacy API for user ${session.userId}, type: ${type}`);
 
-        console.log(`[Tidal] Fetching favorites via Open API for user ${session.userId}, type: ${type}`);
+        const headers = { 'Authorization': `Bearer ${token}` };
+        if (session.sessionId) headers['X-Tidal-SessionId'] = session.sessionId;
 
-        const response = await axios.get(`https://openapi.tidal.com/users/${session.userId}/favorites/${type}`, {
+        const response = await axios.get(`https://api.tidal.com/v1/users/${session.userId}/favorites/${type}`, {
             params: {
                 limit: 50,
-                offset: 0,
                 countryCode: session.countryCode
             },
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Accept': 'application/vnd.tidal.v1+json'
-            }
+            headers: headers
         });
 
         res.json(response.data);
     } catch (error) {
         console.error(`[Tidal] Fetch favorites ${type} failed:`, error.message);
-        if (error.response) console.error(`[Tidal] Favorites Error Data:`, error.response.data);
         res.status(500).json({ error: `Failed to fetch Tidal ${type}` });
     }
 });
