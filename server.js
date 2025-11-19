@@ -435,7 +435,6 @@ app.get('/api/tidal/favorites/:type', async (req, res) => {
 
         const response = await axios.get(`https://api.tidal.com/v1/users/${session.userId}/favorites/${type}`, {
             params: {
-                countryCode: session.countryCode,
                 limit: 50
             },
             headers: { 'Authorization': `Bearer ${token}` }
