@@ -366,7 +366,7 @@ app.get('/api/tidal/search', async (req, res) => {
         console.log(`[Tidal] Open API Search: "${query}" types="${typesParam}" country="${countryCode}"`);
 
         // REQUEST: Use 'q' parameter as requested and Open API endpoint
-        const response = await axios.get('https://openapi.tidal.com/search', {
+        const response = await axios.get('https://openapi.tidal.com/v2/search', {
             params: {
                 q: query, // Updated parameter name per requirements
                 type: typesParam,
