@@ -534,14 +534,24 @@ io.on('connection', (socket) => {
                             const manifest = JSON.parse(Buffer.from(res.data.manifest, 'base64').toString('utf-8'));
                             if (manifest.urls && manifest.urls.length > 0) {
                                 resolvedUrl = manifest.urls[0];
-                                console.log(`[Tidal] Resolved URL with quality: ${quality}`);
-                                break; // Found it!
+                                console.log(`[Tidal] Resolved BTC URL with quality: ${quality}`);
+                                break;
                             }
                         }
-                        // Handle DASH Manifest (Fallback: not all MPDs play this well, but better than crashing)
+                        // Handle DASH Manifest (Extract BaseURL from XML)
                         else if (res.data.manifestMimeType === 'application/dash+xml') {
-                            console.log(`[Tidal] Got DASH manifest. MPD might struggle, but skipping extraction for now.`);
-                            // Ideally pass dash url if MPD supports ffmpeg input
+                            console.log(`[Tidal] Parsing DASH manifest for quality: ${quality}`);
+                            const dashXml = Buffer.from(res.data.manifest, 'base64').toString('utf-8');
+
+                            // Simple regex to extract BaseURL (avoids needing an XML parser)
+                            const baseUrlMatch = dashXml.match(/<BaseURL>([^<]+)<\/BaseURL>/);
+                            if (baseUrlMatch && baseUrlMatch[1]) {
+                                resolvedUrl = baseUrlMatch[1];
+                                console.log(`[Tidal] Resolved DASH URL with quality: ${quality}`);
+                                break;
+                            } else {
+                                console.warn(`[Tidal] DASH manifest has no BaseURL`);
+                            }
                         }
                     } catch (e) {
                         const errStatus = e.response?.status || 'Unknown';
