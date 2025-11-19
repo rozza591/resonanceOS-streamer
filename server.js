@@ -302,70 +302,58 @@ app.get('/api/tidal/search', async (req, res) => {
 
     try {
         const creds = await getTidalCredentials();
-        const searchTypes = type || 'ARTISTS,ALBUMS,TRACKS,PLAYLISTS';
-
-        console.log(`[Tidal] Searching: "${query}" (${searchTypes})`);
+        console.log(`[Tidal] Searching: "${query}"`);
 
         const response = await axios.get('https://api.tidal.com/v1/search', {
             params: {
                 query,
-                types: searchTypes,
+                types: type || 'ARTISTS,ALBUMS,TRACKS,PLAYLISTS',
                 limit: limit || 30,
                 countryCode: creds.countryCode
             },
             headers: getWebHeaders(creds)
         });
-
         res.json(response.data);
     } catch (error) {
-        console.error('[Tidal] Search failed:', error.message);
-        res.status(500).json({ error: 'Tidal search failed' });
+        const status = error.response?.status || 500;
+        console.error(`[Tidal] Search failed (${status}):`, error.message);
+        res.status(status).json({ error: 'Tidal search failed' });
     }
 });
 
 app.get('/api/tidal/artists/:id/albums', async (req, res) => {
     const { id } = req.params;
-    if (!id) return res.status(400).json({ error: 'Artist ID required' });
-
     try {
         const creds = await getTidalCredentials();
         console.log(`[Tidal] Fetching albums for artist: ${id}`);
 
         const response = await axios.get(`https://api.tidal.com/v1/artists/${id}/albums`, {
-            params: {
-                limit: 50,
-                countryCode: creds.countryCode
-            },
+            params: { limit: 50, countryCode: creds.countryCode },
             headers: getWebHeaders(creds)
         });
-
         res.json(response.data);
     } catch (error) {
-        console.error('[Tidal] Artist albums failed:', error.message);
-        res.status(500).json({ error: 'Failed to fetch albums' });
+        const status = error.response?.status || 500;
+        console.error(`[Tidal] Artist albums failed (${status}):`, error.message);
+        res.status(status).json({ error: 'Failed to fetch albums' });
     }
 });
 
 app.get('/api/tidal/albums/:id/tracks', async (req, res) => {
     const { id } = req.params;
-    if (!id) return res.status(400).json({ error: 'Album ID required' });
-
     try {
         const creds = await getTidalCredentials();
         console.log(`[Tidal] Fetching tracks for album: ${id}`);
 
         const response = await axios.get(`https://api.tidal.com/v1/albums/${id}/tracks`, {
-            params: {
-                limit: 50,
-                countryCode: creds.countryCode
-            },
+            params: { limit: 50, countryCode: creds.countryCode },
             headers: getWebHeaders(creds)
         });
-
         res.json(response.data);
     } catch (error) {
-        console.error('[Tidal] Album tracks failed:', error.message);
-        res.status(500).json({ error: 'Failed to fetch tracks' });
+        const status = error.response?.status || 500;
+        console.error(`[Tidal] Album tracks failed (${status}):`, error.message);
+        res.status(status).json({ error: 'Failed to fetch tracks' });
     }
 });
 
@@ -469,12 +457,14 @@ io.on('connection', (socket) => {
         try {
             await fn();
         } catch (e) {
-            console.error(`[Error] ${name}:`, e.message);
-            if (e.response) {
-                console.error(`[Error] API Status:`, e.response.status);
-                console.error(`[Error] API Data:`, JSON.stringify(e.response.data));
+            const status = e.response?.status || 500;
+            console.error(`[Error] ${name} (${status}):`, e.message);
+
+            if (status === 401) {
+                socket.emit('error', { message: 'Tidal Session Expired. Please login again.', code: 401 });
+            } else {
+                socket.emit('error', { message: e.message });
             }
-            socket.emit('error', { message: e.message });
         }
     };
 
@@ -523,21 +513,23 @@ io.on('connection', (socket) => {
                 countryCode: creds.countryCode
             };
 
-            // >>> START OF EDIT: Dual-Strategy for Legacy vs Web Tokens
             if (creds.accessToken) {
-                // Strategy B: Web Token (playbackinfopostpaywall)
+                // >>> START OF EDIT: Enhanced Web Token Strategy (Logging + Fallbacks)
                 console.log(`[Tidal] Using Web Token Strategy (playbackinfopostpaywall/v4)`);
-
-                // Attempt qualities: HI_RES -> LOSSLESS -> HIGH -> LOW
-                const qualities = ['HI_RES', 'LOSSLESS', 'HIGH', 'LOW'];
+                // Added HI_RES_LOSSLESS for new Tidal tiers
+                const qualities = ['HI_RES_LOSSLESS', 'HI_RES', 'LOSSLESS', 'HIGH', 'LOW'];
 
                 for (const quality of qualities) {
                     try {
+                        console.log(`[Tidal] Attempting quality: ${quality}`);
                         const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/playbackinfopostpaywall/v4`, {
                             params: { ...playbackParams, audioquality: quality },
                             headers: getWebHeaders(creds)
                         });
 
+                        console.log(`[Tidal] Response Type: ${res.data.manifestMimeType}`);
+
+                        // Handle JSON Manifest (BTC)
                         if (res.data.manifestMimeType === 'application/vnd.tidal.btc') {
                             const manifest = JSON.parse(Buffer.from(res.data.manifest, 'base64').toString('utf-8'));
                             if (manifest.urls && manifest.urls.length > 0) {
@@ -546,55 +538,37 @@ io.on('connection', (socket) => {
                                 break; // Found it!
                             }
                         }
+                        // Handle DASH Manifest (Fallback: not all MPDs play this well, but better than crashing)
+                        else if (res.data.manifestMimeType === 'application/dash+xml') {
+                            console.log(`[Tidal] Got DASH manifest. MPD might struggle, but skipping extraction for now.`);
+                            // Ideally pass dash url if MPD supports ffmpeg input
+                        }
                     } catch (e) {
-                        // Continue to next quality
+                        const errStatus = e.response?.status || 'Unknown';
+                        console.warn(`[Tidal] Quality ${quality} failed: ${errStatus} - ${e.message}`);
+                        // Only stop if 401 Unauthorized (Token dead)
+                        if (errStatus === 401) throw e;
                     }
                 }
+                // <<< END OF EDIT
             } else {
                 // Strategy A: Legacy Token (/url)
                 console.log(`[Tidal] Using Legacy Token Strategy (/url)`);
                 try {
-                    // 1. Try HI_RES
                     const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
                         params: { ...playbackParams, audioquality: 'HI_RES' },
                         headers: getWebHeaders(creds)
                     });
                     resolvedUrl = res.data.url;
                 } catch (e1) {
-                    try {
-                        // 2. Try LOSSLESS
-                        const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                            params: { ...playbackParams, audioquality: 'LOSSLESS' },
-                            headers: getWebHeaders(creds)
-                        });
-                        resolvedUrl = res.data.url;
-                    } catch (e2) {
-                        // 3. Try HIGH
-                        try {
-                            const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                                params: { ...playbackParams, audioquality: 'HIGH' },
-                                headers: getWebHeaders(creds)
-                            });
-                            resolvedUrl = res.data.url;
-                        } catch (e3) {
-                            // 4. Try LOW
-                            try {
-                                const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
-                                    params: { ...playbackParams, audioquality: 'LOW' },
-                                    headers: getWebHeaders(creds)
-                                });
-                                resolvedUrl = res.data.url;
-                            } catch (e4) { }
-                        }
-                    }
+                    if (e1.response && e1.response.status === 401) throw e1;
                 }
             }
-            // <<< END OF EDIT
         } else {
             resolvedUrl = data.uri;
         }
 
-        if (!resolvedUrl) throw new Error('Failed to resolve URL for playback. (Check Subscription/Region)');
+        if (!resolvedUrl) throw new Error('Failed to resolve URL (Session may be expired or Region mismatch)');
 
         await sendMpdCommand('add', [resolvedUrl]);
         await sendMpdCommand('play');
@@ -605,9 +579,6 @@ io.on('connection', (socket) => {
         if (uri.includes('tidal') || /^\d+$/.test(uri)) {
             const id = uri.split('/').pop();
             const creds = await getTidalCredentials();
-            // Note: Simple queueing might still fail for web tokens if not updated similarly, 
-            // but playTrack is the primary interaction now.
-            // For consistency, we should probably use playTrack logic here too, but keeping it simple for now.
             const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
                 params: { audioquality: 'HI_RES', playbackmode: 'STREAM', assetpresentation: 'FULL' },
                 headers: getWebHeaders(creds)
