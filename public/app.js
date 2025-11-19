@@ -916,9 +916,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="track-duration">${formatTime(track.duration)}</span>
             `;
             li.addEventListener('click', () => {
-                // TODO: Implement Playback
-                showToast(`Playing Tidal track: ${track.title}`, 'info');
-                // socket.emit('playTidal', track.id); // Future implementation
+                socket.emit('clearQueue');
+                socket.emit('addToQueue', `tidal://track/${track.id}`);
+                socket.emit('play');
+                showToast(`Playing ${track.title}...`, 'info');
+                closeModal(libraryModal);
             });
             return li;
         };
@@ -1311,16 +1313,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const tidalStatus = document.getElementById('tidal-status');
     const qobuzStatus = document.getElementById('qobuz-status');
 
-    // Handle Button Clicks - Redirect to Server Auth Routes
+    // Handle Button Clicks - Redirect to Server Auth Routes OR Logout
     if (btnAuthTidal) {
         btnAuthTidal.addEventListener('click', () => {
-            window.location.href = '/auth/tidal';
+            if (btnAuthTidal.textContent === 'Disconnect') {
+                if (confirm('Disconnect from Tidal?')) {
+                    socket.emit('logoutService', 'tidal');
+                }
+            } else {
+                window.location.href = '/auth/tidal';
+            }
         });
     }
 
     if (btnAuthQobuz) {
         btnAuthQobuz.addEventListener('click', () => {
-            window.location.href = '/auth/qobuz';
+            if (btnAuthQobuz.textContent === 'Disconnect') {
+                if (confirm('Disconnect from Qobuz?')) {
+                    socket.emit('logoutService', 'qobuz');
+                }
+            } else {
+                window.location.href = '/auth/qobuz';
+            }
         });
     }
 
@@ -1331,11 +1345,14 @@ document.addEventListener('DOMContentLoaded', () => {
             tidalStatus.textContent = 'Connected';
             tidalStatus.classList.remove('available');
             tidalStatus.classList.add('connected');
-            btnAuthTidal.textContent = 'Reconnect';
+            btnAuthTidal.textContent = 'Disconnect';
+            btnAuthTidal.classList.add('danger'); // Optional: Add danger style if you have it
         } else {
             tidalStatus.textContent = 'Not Connected';
             tidalStatus.classList.remove('connected');
             tidalStatus.classList.add('available');
+            btnAuthTidal.textContent = 'Connect';
+            btnAuthTidal.classList.remove('danger');
         }
 
         // Qobuz Status
@@ -1343,11 +1360,12 @@ document.addEventListener('DOMContentLoaded', () => {
             qobuzStatus.textContent = 'Connected';
             qobuzStatus.classList.remove('available');
             qobuzStatus.classList.add('connected');
-            btnAuthQobuz.textContent = 'Reconnect';
+            btnAuthQobuz.textContent = 'Disconnect';
         } else {
             qobuzStatus.textContent = 'Not Connected';
             qobuzStatus.classList.remove('connected');
             qobuzStatus.classList.add('available');
+            btnAuthQobuz.textContent = 'Connect';
         }
     });
 

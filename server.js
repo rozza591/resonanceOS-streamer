@@ -189,7 +189,7 @@ function sha256(buffer) {
 app.get('/auth/tidal', (req, res) => {
     const clientId = process.env.TIDAL_CLIENT_ID;
     const redirectUri = CONFIG.REDIRECT_URI;
-    const scope = 'user.read collection.read search.read playlists.write playlists.read entitlements.read collection.write recommendations.read playback search.write';
+    const scope = 'r_usr account.read user.read collection.read search.read playlists.write playlists.read entitlements.read collection.write recommendations.read playback search.write';
 
     // Generate PKCE Verifier and Challenge
     const verifier = base64URLEncode(crypto.randomBytes(32));
@@ -730,6 +730,19 @@ io.on('connection', (socket) => {
         console.log(`[Services] Saved credentials for ${service}`);
         socket.emit('message', { text: `${service} settings saved.` });
     }, 'saveService'));
+
+    socket.on('logoutService', (service) => safeExecute(async () => {
+        if (!service) throw new Error('Service name required');
+        await new Promise((resolve, reject) => {
+            db.run("DELETE FROM services WHERE service = ?", [service], (err) => {
+                if (err) return reject(err);
+                resolve();
+            });
+        });
+        console.log(`[Services] Logged out of ${service}`);
+        socket.emit('message', { text: `Logged out of ${service}.` });
+        socket.emit('getServices'); // Refresh UI
+    }, 'logoutService'));
 
     // --- ADDED: New Metadata Fetch Handler ---
     socket.on('fetchMetadata', ({ artist, album }) => safeExecute(async () => {
