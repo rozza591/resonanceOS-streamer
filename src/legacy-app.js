@@ -1,6 +1,8 @@
 import { socket } from './socket.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+const initApp = () => {
+    console.log('[Legacy App] Initializing...');
+
     // --- 1. Connect to Socket.io ---
     // Socket is imported from module
 
@@ -998,5 +1000,11 @@ document.addEventListener('DOMContentLoaded', () => {
         visualizerCanvas.width = visualizerCanvas.offsetWidth;
         visualizerCanvas.height = visualizerCanvas.offsetHeight;
     }
+};
 
-});
+// Handle DOMContentLoaded race condition for ES modules
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
