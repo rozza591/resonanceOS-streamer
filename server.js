@@ -345,7 +345,6 @@ app.get('/api/tidal/artists/:id/albums', async (req, res) => {
     }
 });
 
-// >>> START OF EDIT: New Route for Album Tracks
 app.get('/api/tidal/albums/:id/tracks', async (req, res) => {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: 'Album ID required' });
@@ -368,7 +367,6 @@ app.get('/api/tidal/albums/:id/tracks', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch tracks' });
     }
 });
-// <<< END OF EDIT
 
 // --- 11. MPD Connection ---
 async function connectMPD() {
@@ -493,22 +491,53 @@ io.on('connection', (socket) => {
         socket.emit('songList', { album: album, songs: songs, metadata: meta });
     }, 'songs'));
 
-    // Queue Tidal
+    // >>> START OF EDIT: Replaced separate 'addToQueue' and 'play' events with Atomic 'playTrack'
+    // Note: Kept 'addToQueue' for compatibility/just adding, but 'playTrack' is used for clicking items.
+
+    socket.on('playTrack', (data) => safe(async () => {
+        // data: { uri: string, service: 'tidal'|'local', clear: boolean }
+        console.log(`[Player] playTrack: ${data.uri} (clear: ${data.clear})`);
+
+        if (data.clear) await sendMpdCommand('clear');
+
+        let urlToAdd = data.uri;
+
+        // Resolve Tidal URL if needed
+        if (data.service === 'tidal') {
+            const id = data.uri.split('/').pop();
+            console.log(`[Player] Resolving Tidal ID: ${id}`);
+            const creds = await getTidalCredentials();
+            const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
+                params: { audioquality: 'HI_RES', playbackmode: 'STREAM', assetpresentation: 'FULL' },
+                headers: getWebHeaders(creds)
+            });
+            if (res.data.url) {
+                urlToAdd = res.data.url;
+            } else {
+                throw new Error('Failed to resolve Tidal URL');
+            }
+        }
+
+        // Atomic: Add THEN Play
+        await sendMpdCommand('add', [urlToAdd]);
+        await sendMpdCommand('play');
+
+    }, 'playTrack'));
+
     socket.on('addToQueue', (uri) => safe(async () => {
         if (uri.includes('tidal') || /^\d+$/.test(uri)) {
             const id = uri.split('/').pop();
-            console.log(`[Queue] Resolving Tidal ID: ${id}`);
             const creds = await getTidalCredentials();
             const res = await axios.get(`https://api.tidal.com/v1/tracks/${id}/url`, {
                 params: { audioquality: 'HI_RES', playbackmode: 'STREAM', assetpresentation: 'FULL' },
                 headers: getWebHeaders(creds)
             });
             if (res.data.url) await sendMpdCommand('add', [res.data.url]);
-            else throw new Error('No stream URL');
         } else {
             await sendMpdCommand('add', [uri]);
         }
     }, 'add'));
+    // <<< END OF EDIT
 
     socket.on('removeFromQueue', (id) => safe(() => sendMpdCommand('deleteid', [id]), 'del'));
     socket.on('clearQueue', () => safe(() => sendMpdCommand('clear'), 'clear'));

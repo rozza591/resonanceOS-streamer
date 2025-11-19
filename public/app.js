@@ -354,22 +354,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Enhanced Back Button Logic for Tidal History
     if (libraryBackBtn) {
         libraryBackBtn.addEventListener('click', () => {
-            // Handle Tidal History
             if (currentSource === 'tidal' && tidalHistory.length > 0) {
-                // Pop current view
                 tidalHistory.pop();
                 const previousView = tidalHistory[tidalHistory.length - 1];
-
                 if (previousView) {
-                    // >>> START OF EDIT: Fixed history data access
                     renderTidalResults(previousView.data);
-                    // <<< END OF EDIT
                     if (librarySearch) librarySearch.value = previousView.query || '';
                 } else {
-                    // Back to initial search state
                     if (tidalViewSearch) tidalViewSearch.innerHTML = '';
                     tidalHistory = [];
                     if (libraryBackBtn) libraryBackBtn.classList.add('hidden');
@@ -378,8 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return;
             }
-
-            // Local History Logic
             if (librarySearch) librarySearch.value = '';
             if (currentLibraryView === 'tracks') {
                 showLibraryView('albums', currentArtist);
@@ -606,15 +597,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res.ok) throw new Error(`Status ${res.status}`);
             const data = await res.json();
 
-            // Mock a search result structure to reuse the renderer
             const result = {
                 albums: { items: data.items || [] }
             };
 
-            // Push to history so Back button works
             tidalHistory.push({ type: 'artist_albums', artistId, data: result });
 
-            // Update Header or Search input to show context (optional)
             if (librarySearch) librarySearch.value = `Albums by ${artistName}`;
             if (libraryBackBtn) libraryBackBtn.classList.remove('hidden');
 
@@ -628,7 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // >>> START OF EDIT: Fetch Tracks for a Tidal Album
+    // Fetch Tracks for a Tidal Album
     const fetchTidalAlbumTracks = async (albumId, albumTitle, albumCover) => {
         if (!tidalViewSearch || !librarySpinner) return;
 
@@ -640,7 +628,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res.ok) throw new Error(`Status ${res.status}`);
             const data = await res.json();
 
-            // Patch album metadata into tracks since it might be missing in this endpoint
             const tracks = data.items.map(track => {
                 const patched = { ...track };
                 if (!patched.album) patched.album = {};
@@ -653,7 +640,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 tracks: { items: tracks }
             };
 
-            // Push to history
             tidalHistory.push({ type: 'album_tracks', albumId, data: result });
 
             if (librarySearch) librarySearch.value = `${albumTitle}`;
@@ -668,7 +654,6 @@ document.addEventListener('DOMContentLoaded', () => {
             librarySpinner.classList.add('hidden');
         }
     };
-    // <<< END OF EDIT
 
     const fetchTidalSearch = async (query) => {
         if (!tidalViewSearch) return;
@@ -681,7 +666,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res.ok) throw new Error(`Status ${res.status}`);
             const data = await res.json();
 
-            // Push query to history
             tidalHistory.push({ type: 'search', query, data });
 
             renderTidalResults(data);
@@ -696,9 +680,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderTidalResults = (data) => {
         if (!tidalViewSearch) return;
         tidalViewSearch.classList.remove('hidden');
-        tidalViewSearch.innerHTML = ''; // Ensure clear before render
+        tidalViewSearch.innerHTML = '';
 
-        // Render Artists
         if (data?.artists?.items) {
             data.artists.items.forEach(artist => {
                 const div = document.createElement('div');
@@ -715,7 +698,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Render Albums
         if (data?.albums?.items) {
             data.albums.items.forEach(album => {
                 const div = document.createElement('div');
@@ -725,16 +707,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <img src="${img}" onerror="this.style.display='none';this.parentElement.style.backgroundColor='#333'">
                     <span>${album?.title || 'Unknown'}</span>
                 `;
-                // >>> START OF EDIT: Click Handler for Album Tracks
                 div.addEventListener('click', () => {
                     fetchTidalAlbumTracks(album.id, album.title, album.cover);
                 });
-                // <<< END OF EDIT
                 tidalViewSearch.appendChild(div);
             });
         }
 
-        // Render Tracks
         if (data?.tracks?.items) {
             const ul = document.createElement('ul');
             ul.className = 'library-track-list';
@@ -752,13 +731,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <span class="track-duration">${formatTime(track?.duration || 0)}</span>
                 `;
+                // >>> START OF EDIT: Use 'playTrack' atomic event
                 li.addEventListener('click', () => {
-                    socket.emit('clearQueue');
-                    socket.emit('addToQueue', `tidal://track/${track.id}`);
-                    socket.emit('play');
+                    socket.emit('playTrack', { uri: `tidal://track/${track.id}`, service: 'tidal', clear: true });
                     showToast(`Playing ${track.title}...`, 'info');
                     closeModal(libraryModal);
                 });
+                // <<< END OF EDIT
                 ul.appendChild(li);
             });
             tidalViewSearch.appendChild(ul);
@@ -880,12 +859,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <span class="track-duration">${formatTime(track.time)}</span>
             `;
+            // >>> START OF EDIT: Use 'playTrack' atomic event
             li.addEventListener('click', () => {
-                socket.emit('clearQueue');
-                socket.emit('addToQueue', track.file);
-                socket.emit('play');
+                socket.emit('playTrack', { uri: track.file, service: 'local', clear: true });
+                showToast(`Playing ${track.title}...`, 'info');
                 closeModal(libraryModal);
             });
+            // <<< END OF EDIT
             libraryViewTracks.appendChild(li);
         });
     });
